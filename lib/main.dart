@@ -15,7 +15,7 @@ class SmartFoodApp extends StatelessWidget {
       title: 'SmartFood',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const       git push origin setup/structure-initiale(),
+     home: const ReservationNavigationScreen(),
     );
   }
 }
