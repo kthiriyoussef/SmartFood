@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
 import 'package:smartfood/features/restaurants/screens/client_restaurant_menu_screen.dart';
+import 'package:smartfood/features/restaurants/services/restaurant_service.dart';
 
 class ClientRestaurantCatalogScreen extends StatefulWidget {
   const ClientRestaurantCatalogScreen({super.key});
@@ -13,44 +14,51 @@ class ClientRestaurantCatalogScreen extends StatefulWidget {
 
 class _ClientRestaurantCatalogScreenState
     extends State<ClientRestaurantCatalogScreen> {
-  static final List<Restaurant> _restaurants = [
-    Restaurant(
-      id: 1,
-      nom: 'Le Jardin Gourmand',
-      adresse: 'Les Berges du Lac',
-      ville: 'Tunis',
-      telephone: '+216 71 123 456',
-      dateCreation: DateTime(2024, 3, 12),
-    ),
-    Restaurant(
-      id: 2,
-      nom: 'Café des Oliviers',
-      adresse: 'Centre-ville',
-      ville: 'Sousse',
-      telephone: '+216 73 456 789',
-      dateCreation: DateTime(2024, 6, 8),
-    ),
-    Restaurant(
-      id: 3,
-      nom: 'La Table du Marché',
-      adresse: 'El Menzah 6',
-      ville: 'Tunis',
-      telephone: '+216 71 987 654',
-      dateCreation: DateTime(2023, 11, 21),
-    ),
-  ];
+  final _restaurantService = RestaurantService();
+  List<Restaurant> _restaurants = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRestaurants();
+  }
+
+  Future<void> _loadRestaurants() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final restaurants = await _restaurantService.getRestaurants();
+      if (!mounted) return;
+      setState(() {
+        _restaurants = restaurants;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Impossible de charger les restaurants.';
+        _loading = false;
+      });
+    }
+  }
 
   final _searchController = TextEditingController();
   String _query = '';
   String _selectedArea = 'Tout';
 
-  static const _areas = ['Tout', 'Tunis', 'Sousse'];
+  List<String> get _areas => [
+        'Tout',
+        ...{for (final restaurant in _restaurants) restaurant.ville},
+      ];
 
   List<Restaurant> get _filteredRestaurants {
     final query = _query.trim().toLowerCase();
     return _restaurants.where((restaurant) {
-      final matchesQuery =
-          query.isEmpty ||
+      final matchesQuery = query.isEmpty ||
           restaurant.nom.toLowerCase().contains(query) ||
           restaurant.adresse.toLowerCase().contains(query) ||
           restaurant.ville.toLowerCase().contains(query);
@@ -118,7 +126,9 @@ class _ClientRestaurantCatalogScreenState
                             const SizedBox(height: 7),
                             Text(
                               'Découvrez les restaurants et leurs spécialités.',
-                              style: Theme.of(context).textTheme.bodyMedium
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
                                   ?.copyWith(
                                     color: Colors.white.withOpacity(0.94),
                                   ),
@@ -200,9 +210,10 @@ class _ClientRestaurantCatalogScreenState
                       side: BorderSide(
                         color: selected ? AppColors.primary : AppColors.border,
                       ),
-                      labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: selected ? Colors.white : AppColors.text,
-                      ),
+                      labelStyle:
+                          Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: selected ? Colors.white : AppColors.text,
+                              ),
                     );
                   },
                 ),
@@ -217,21 +228,44 @@ class _ClientRestaurantCatalogScreenState
                       child: Text(
                         'Restaurants près de vous',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ),
                     Text(
                       '${restaurants.length} lieux',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.muted,
-                      ),
+                            color: AppColors.muted,
+                          ),
                     ),
                   ],
                 ),
               ),
             ),
-            if (restaurants.isEmpty)
+            if (_loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_error!),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _loadRestaurants,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (restaurants.isEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
                 child: _EmptySearchState(),
@@ -260,46 +294,7 @@ class _ClientRestaurantCatalogScreenState
           ],
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 1,
-        onDestinationSelected: (index) {
-          if (index != 1) _showComingSoon(context);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Accueil',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            selectedIcon: Icon(Icons.storefront_rounded),
-            label: 'Restaurants',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.favorite_border_rounded),
-            selectedIcon: Icon(Icons.favorite_rounded),
-            label: 'Favoris',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Profil',
-          ),
-        ],
-      ),
     );
-  }
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Cette section sera bientôt disponible.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
   }
 }
 
@@ -369,7 +364,9 @@ class _ClientRestaurantCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(
                             '4.8',
-                            style: Theme.of(context).textTheme.labelMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
                                 ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                         ],
@@ -397,8 +394,8 @@ class _ClientRestaurantCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
                   const SizedBox(height: 7),
                   Row(
@@ -414,9 +411,10 @@ class _ClientRestaurantCard extends StatelessWidget {
                           '${restaurant.adresse}, ${restaurant.ville}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.muted,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.muted,
+                                  ),
                         ),
                       ),
                     ],
@@ -433,17 +431,18 @@ class _ClientRestaurantCard extends StatelessWidget {
                       Text(
                         'Voir la carte',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const Spacer(),
                       Text(
                         'Ouvert',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
                       const SizedBox(width: 6),
                       const Icon(
@@ -483,16 +482,16 @@ class _EmptySearchState extends StatelessWidget {
             Text(
               'Aucun restaurant trouvé',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
             const SizedBox(height: 5),
             Text(
               'Essayez un autre nom ou une autre ville.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.muted,
-              ),
+                    color: AppColors.muted,
+                  ),
             ),
           ],
         ),

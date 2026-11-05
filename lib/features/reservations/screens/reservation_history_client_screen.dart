@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
 import 'package:smartfood/features/reservations/screens/reservation_details_client.dart';
+import 'package:smartfood/features/reservations/services/reservation_service.dart';
 import 'package:smartfood/features/reservations/widgets/reservation_card.dart';
 
 class ReservationHistoryClientScreen extends StatefulWidget {
@@ -18,118 +19,68 @@ class _ReservationHistoryClientScreenState
     extends State<ReservationHistoryClientScreen> {
   ReservationFilter _selectedFilter = ReservationFilter.inProgress;
 
-  static const List<Reservation> _mockReservations = [
-    Reservation(
-      id: 'res -201',
-      clientName: 'Sonia Ben Ali',
-      pickupTime: 'Aujourd’hui · 18h30',
-      status: 'EN_ATTENTE',
-      pinCode: '8451',
-      phoneNumber: '+21622345678',
-      restaurantName: 'Le Petit Jardin',
-      dishNames: 'Wrap végétal, salade de saison, jus maison fresh.',
-      importantNote: 'Votre repas est en préparation et sera prêt à l’heure indiquée.',
-    ),
-    Reservation(
-      id: 'res -202',
-      clientName: 'Sonia Ben Ali',
-      pickupTime: 'Aujourd’hui · 19h15',
-      status: 'CONFIRMEE',
-      pinCode: '5712',
-      phoneNumber: '+21622345678',
-      restaurantName: 'Boulangerie Bio & Co',
-      dishNames: 'Bowl protein, quinoa, légumes grillés.',
-      importantNote: 'Réservation confirmée. Vous pouvez récupérer votre commande à l’heure prévue.',
-    ),
-    Reservation(
-      id: 'res -203',
-      clientName: 'Sonia Ben Ali',
-      pickupTime: 'Demain · 12h00',
-      status: 'PREPARATION',
-      pinCode: '3478',
-      phoneNumber: '+21622345678',
-      restaurantName: 'Green Bowl',
-      dishNames: 'Pasta anti-gaspi, légumes croquants et sauce maison.',
-      importantNote: 'Votre plat est en cours de préparation. Merci pour votre patience.',
-    ),
-    Reservation(
-      id: 'res -204',
-      clientName: 'Sonia Ben Ali',
-      pickupTime: 'Hier · 18h10',
-      status: 'PRETE',
-      pinCode: '9284',
-      phoneNumber: '+21622345678',
-      restaurantName: 'Le Petit Jardin',
-      dishNames: 'Bento végétal, riz, avocat, légumes cuits et petit dessert.',
-      importantNote: 'Votre commande est prête à être récupérée. Présentez votre QR ou votre code PIN.',
-    ),
-    Reservation(
-      id: 'res -205',
-      clientName: 'Sonia Ben Ali',
-      pickupTime: 'Vendredi · 17h45',
-      status: 'RECUPEREE',
-      pinCode: '6610',
-      phoneNumber: '+21622345678',
-      restaurantName: 'Cocotte & Co',
-      dishNames: 'Salade chaude, poulet grillé, pommes de terre rôties.',
-      importantNote: 'Cette réservation a déjà été récupérée. Aucun code de retrait n’est actif.',
-    ),
-    Reservation(
-      id: 'res -206',
-      clientName: 'Sonia Ben Ali',
-      pickupTime: 'Lundi · 16h00',
-      status: 'ANNULEE',
-      pinCode: '1902',
-      phoneNumber: '+21622345678',
-      restaurantName: 'Maison de la Cuisine',
-      dishNames: 'Plateau anti-gaspi, légumes de saison et soupçon de persil.',
-      importantNote: 'Cette réservation a été annulée. Aucun PIN ni QR n’est disponible.',
-    ),
-  ];
+  final _service = ReservationService();
+  List<Reservation> _reservations = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    ReservationService.changes.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    ReservationService.changes.removeListener(_load);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final reservations = await _service.getReservations();
+    if (!mounted) return;
+    setState(() {
+      _reservations = reservations;
+      _loading = false;
+    });
+  }
 
   List<Reservation> get _filteredReservations {
     switch (_selectedFilter) {
       case ReservationFilter.inProgress:
-        return _mockReservations
+        return _reservations
             .where(
-              (reservation) => {
-                'EN_ATTENTE',
-                'CONFIRMEE',
-                'PREPARATION',
-                'PRETE',
-              }.contains(reservation.status),
+              (reservation) =>
+                  ReservationStatus.active.contains(reservation.status),
             )
             .toList();
       case ReservationFilter.recovered:
-        return _mockReservations
-            .where((reservation) => reservation.status == 'RECUPEREE')
+        return _reservations
+            .where((reservation) =>
+                reservation.status == ReservationStatus.recuperee)
             .toList();
       case ReservationFilter.cancelled:
-        return _mockReservations
-            .where((reservation) => reservation.status == 'ANNULEE')
+        return _reservations
+            .where((reservation) =>
+                reservation.status == ReservationStatus.annulee)
             .toList();
       case ReservationFilter.all:
-        return _mockReservations;
+        return _reservations;
     }
   }
 
-  int get _inProgressCount => _mockReservations
+  int get _inProgressCount => _reservations
       .where(
-        (reservation) => {
-          'EN_ATTENTE',
-          'CONFIRMEE',
-          'PREPARATION',
-          'PRETE',
-        }.contains(reservation.status),
+        (reservation) => ReservationStatus.active.contains(reservation.status),
       )
       .length;
 
-  int get _recoveredCount => _mockReservations
-      .where((reservation) => reservation.status == 'RECUPEREE')
+  int get _recoveredCount => _reservations
+      .where((reservation) => reservation.status == ReservationStatus.recuperee)
       .length;
 
-  int get _cancelledCount => _mockReservations
-      .where((reservation) => reservation.status == 'ANNULEE')
+  int get _cancelledCount => _reservations
+      .where((reservation) => reservation.status == ReservationStatus.annulee)
       .length;
 
   @override
@@ -170,9 +121,9 @@ class _ReservationHistoryClientScreenState
                   child: Text(
                     'Filtres',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.text,
-                    ),
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.text,
+                        ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -236,14 +187,20 @@ class _ReservationHistoryClientScreenState
                               ),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(18),
-                                onTap: () => setState(() => _selectedFilter = filter),
+                                onTap: () =>
+                                    setState(() => _selectedFilter = filter),
                                 child: Center(
                                   child: Text(
                                     filter.label,
-                                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                      color: isSelected ? AppColors.primary : AppColors.text,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(
+                                          color: isSelected
+                                              ? AppColors.primary
+                                              : AppColors.text,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                   ),
                                 ),
                               ),
@@ -256,25 +213,45 @@ class _ReservationHistoryClientScreenState
                 ),
                 const SizedBox(height: 18),
                 Expanded(
-                  child: ListView.separated(
-                    itemCount: _filteredReservations.length,
-                    separatorBuilder: (context, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final reservation = _filteredReservations[index];
-                      return ReservationCard(
-                        reservation: reservation,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ReservationDetailScreen(
-                                reservation: reservation,
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _filteredReservations.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Aucune réservation ici pour le moment.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: AppColors.muted),
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _load,
+                              child: ListView.separated(
+                                itemCount: _filteredReservations.length,
+                                separatorBuilder: (context, _) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final reservation =
+                                      _filteredReservations[index];
+                                  return ReservationCard(
+                                    reservation: reservation,
+                                    onTap: () async {
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              ReservationDetailScreen(
+                                            reservation: reservation,
+                                          ),
+                                        ),
+                                      );
+                                      // Le statut a pu changer (annulation).
+                                      _load();
+                                    },
+                                  );
+                                },
                               ),
                             ),
-                          );
-                        },
-                      );
-                    },
-                  ),
                 ),
               ],
             ),
@@ -337,16 +314,16 @@ class _GlassSummaryCard extends StatelessWidget {
                       Text(
                         'Sonia Ben Ali',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         'Historique et réservations actives',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withOpacity(0.7),
-                        ),
+                              color: Colors.white.withOpacity(0.7),
+                            ),
                       ),
                     ],
                   ),
@@ -426,17 +403,17 @@ class _SummaryItem extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
-            ),
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.white.withOpacity(0.82),
-              fontWeight: FontWeight.w600,
-            ),
+                  color: Colors.white.withOpacity(0.82),
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ],
       ),

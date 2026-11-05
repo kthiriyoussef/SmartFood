@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as path;
 import 'package:sqflite/sqflite.dart';
 import 'package:smartfood/core/database/database_schema.dart';
+import 'package:smartfood/core/database/database_seeder.dart';
 
 class DatabaseHelper {
   DatabaseHelper._();
@@ -30,6 +31,10 @@ class DatabaseHelper {
       },
       onCreate: DatabaseSchema.create,
       onUpgrade: DatabaseSchema.upgrade,
+      onOpen: (database) async {
+        await DatabaseSeeder.seedIfEmpty(database);
+        await DatabaseSeeder.ensureTestRestaurant(database);
+      },
     );
   }
 

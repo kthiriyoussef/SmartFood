@@ -30,12 +30,40 @@ class RestaurantRepository {
   Future<void> updateRestaurant(Restaurant restaurant) async {
     final id = restaurant.id;
     if (id == null) {
-      throw ArgumentError('Un identifiant est requis pour modifier un restaurant.');
+      throw ArgumentError(
+          'Un identifiant est requis pour modifier un restaurant.');
     }
 
     final count = await (await _database).update(
       'restaurants',
       restaurant.toMap(),
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (count == 0) {
+      throw StateError('Le restaurant $id n’existe pas.');
+    }
+  }
+
+  /// Réservations non clôturées (en attente → prête) du restaurant.
+  Future<int> countActiveReservations(int restaurantId) async {
+    final result = await (await _database).rawQuery(
+      '''
+      SELECT COUNT(*) AS total FROM reservations
+      WHERE restaurant_id = ?
+        AND statut IN ('EN_ATTENTE', 'CONFIRMEE', 'PREPARATION', 'PRETE')
+      ''',
+      [restaurantId],
+    );
+    return (result.first['total'] as num).toInt();
+  }
+
+  /// Réactive le restaurant. Les plats restent indisponibles : le gérant
+  /// les remet en vente un par un (stock à vérifier).
+  Future<void> reactivateRestaurant(int id) async {
+    final count = await (await _database).update(
+      'restaurants',
+      {'statut': RestaurantStatus.actif.name},
       where: 'id = ?',
       whereArgs: [id],
     );

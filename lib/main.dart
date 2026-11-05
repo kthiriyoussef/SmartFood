@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:smartfood/app/role_scope.dart';
 import 'package:smartfood/app/theme.dart';
-import 'package:smartfood/features/reservations/screens/reservation_navigation_screen.dart';
 
 void main() {
   runApp(const SmartFoodApp());
@@ -15,7 +15,9 @@ class SmartFoodApp extends StatelessWidget {
       title: 'SmartFood',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-     home: const ReservationNavigationScreen(),
+      // Pas encore d'authentification : on démarre côté client et on bascule
+      // vers l'espace restaurant avec le bouton de la barre du bas.
+      home: const RoleScope(),
     );
   }
 }

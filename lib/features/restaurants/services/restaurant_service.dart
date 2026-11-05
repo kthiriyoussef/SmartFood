@@ -1,3 +1,4 @@
+import 'package:smartfood/core/database/data_changes.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
 import 'package:smartfood/features/restaurants/repositories/restaurant_repository.dart';
 
@@ -12,7 +13,7 @@ class RestaurantValidationException implements Exception {
 
 class RestaurantService {
   RestaurantService({RestaurantRepository? repository})
-    : _repository = repository ?? RestaurantRepository();
+      : _repository = repository ?? RestaurantRepository();
 
   final RestaurantRepository _repository;
 
@@ -30,16 +31,47 @@ class RestaurantService {
       _repository.getRestaurantById(id);
 
   Future<int> sauvegarderRestaurant(Restaurant restaurant) async {
-    _valider(restaurant);
-    if (restaurant.id == null) {
-      return _repository.insertRestaurant(restaurant);
-    }
+    final cleaned = restaurant.copyWith(
+      nom: restaurant.nom.trim(),
+      adresse: restaurant.adresse.trim(),
+      ville: restaurant.ville.trim(),
+      telephone: restaurant.telephone.trim(),
+    );
+    _valider(cleaned);
+    final id = cleaned.id == null
+        ? await _repository.insertRestaurant(cleaned)
+        : await _updateAndReturnId(cleaned);
+    DataChanges.catalogChanged();
+    return id;
+  }
+
+  Future<int> _updateAndReturnId(Restaurant restaurant) async {
     await _repository.updateRestaurant(restaurant);
     return restaurant.id!;
   }
 
-  Future<void> archiverRestaurant(int id) =>
-      _repository.archiveRestaurant(id);
+  /// Archive le restaurant et rend tous ses plats indisponibles.
+  /// Refusé tant que des réservations sont en cours : le gérant doit
+  /// d'abord les traiter ou les refuser.
+  Future<void> archiverRestaurant(int id) async {
+    final active = await _repository.countActiveReservations(id);
+    if (active > 0) {
+      throw RestaurantValidationException(
+        'Impossible d’archiver : $active réservation(s) en cours. '
+        'Traitez-les ou refusez-les d’abord.',
+      );
+    }
+    await _repository.archiveRestaurant(id);
+    DataChanges.catalogChanged();
+  }
+
+  Future<void> reactiverRestaurant(int id) async {
+    await _repository.reactivateRestaurant(id);
+    DataChanges.catalogChanged();
+  }
+
+  Future<int> compterReservationsActives(int id) =>
+      _repository.countActiveReservations(id);
 
   List<Restaurant> rechercherRestaurants(
     List<Restaurant> restaurants,
@@ -66,7 +98,8 @@ class RestaurantService {
       throw const RestaurantValidationException('La ville est obligatoire.');
     }
     if (restaurant.telephone.trim().isEmpty) {
-      throw const RestaurantValidationException('Le téléphone est obligatoire.');
+      throw const RestaurantValidationException(
+          'Le téléphone est obligatoire.');
     }
 
     final telephone = restaurant.telephone.trim();

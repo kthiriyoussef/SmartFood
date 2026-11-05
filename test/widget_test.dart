@@ -1,28 +1,41 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:smartfood/features/reservations/screens/reservation_history_client_screen.dart';
-import 'package:smartfood/main.dart';
+import 'package:smartfood/app/role_shell.dart';
 
 void main() {
-  testWidgets('SmartFood reservation navigation screen loads', (WidgetTester tester) async {
-    await tester.pumpWidget(const SmartFoodApp());
+  testWidgets('La barre affiche les onglets et le bouton de changement de rôle',
+      (WidgetTester tester) async {
+    var switched = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RoleShell(
+          switchLabel: 'Espace resto',
+          switchIcon: Icons.storefront_rounded,
+          onSwitchRole: () => switched = true,
+          tabs: const [
+            ShellTab(
+              icon: Icons.home_outlined,
+              selectedIcon: Icons.home_rounded,
+              label: 'Accueil',
+              root: Text('page accueil'),
+            ),
+            ShellTab(
+              icon: Icons.person_outline,
+              selectedIcon: Icons.person,
+              label: 'Profil',
+              root: Text('page profil'),
+            ),
+          ],
+        ),
+      ),
+    );
 
-    expect(find.text('Navigation provisoire'), findsOneWidget);
-    expect(find.text('Créer réservation'), findsOneWidget);
-  });
+    expect(find.text('page accueil'), findsOneWidget);
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    expect(find.text('page profil'), findsOneWidget);
 
-  testWidgets('Client reservation history shows restaurant and reservation reference', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(home: ReservationHistoryClientScreen()));
-
-    expect(find.text('Sonia Ben Ali'), findsWidgets);
-    expect(find.textContaining('res -'), findsWidgets);
-    expect(find.textContaining('Le Petit Jardin'), findsWidgets);
+    await tester.tap(find.text('Espace resto'));
+    expect(switched, isTrue);
   });
 }

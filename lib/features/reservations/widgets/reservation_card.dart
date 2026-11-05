@@ -11,8 +11,8 @@ class ReservationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusMeta = _statusMeta(reservation.status);
-    final restaurantName = reservation.restaurantName ?? 'Restaurant SmartFood';
-    final dishNames = reservation.dishNames ?? 'Plat du jour';
+    final restaurantName = reservation.restaurantName;
+    final dishNames = reservation.dishNames;
 
     return Material(
       color: Colors.transparent,
@@ -49,11 +49,11 @@ class ReservationCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      'Réf. ${reservation.id}',
+                      'Réf. ${reservation.reference}',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ),
                   const Spacer(),
@@ -69,9 +69,9 @@ class ReservationCard extends StatelessWidget {
                     child: Text(
                       statusMeta.label,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: statusMeta.foreground,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: statusMeta.foreground,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ),
                 ],
@@ -91,9 +91,9 @@ class ReservationCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.text,
-                      ),
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.text,
+                          ),
                     ),
                   ),
                 ],
@@ -104,9 +104,9 @@ class ReservationCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.muted,
-                  height: 1.4,
-                ),
+                      color: AppColors.muted,
+                      height: 1.4,
+                    ),
               ),
               const SizedBox(height: 14),
               Row(
@@ -120,9 +120,9 @@ class ReservationCard extends StatelessWidget {
                   Text(
                     reservation.pickupTime,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w500,
-                    ),
+                          color: AppColors.text,
+                          fontWeight: FontWeight.w500,
+                        ),
                   ),
                 ],
               ),

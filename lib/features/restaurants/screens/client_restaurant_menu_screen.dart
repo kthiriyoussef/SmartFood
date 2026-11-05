@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/restaurants/models/menu.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
+import 'package:smartfood/features/reservations/screens/menu_detail_client_screen.dart';
+import 'package:smartfood/features/reservations/screens/reservation_form_client.dart';
+import 'package:smartfood/features/reservations/services/reservation_service.dart';
+import 'package:smartfood/features/restaurants/services/menu_service.dart';
 import 'package:smartfood/features/restaurants/widgets/menu_availability_badge.dart';
 
 class ClientRestaurantMenuScreen extends StatefulWidget {
@@ -16,59 +20,68 @@ class ClientRestaurantMenuScreen extends StatefulWidget {
 
 class _ClientRestaurantMenuScreenState
     extends State<ClientRestaurantMenuScreen> {
-  static final List<Menu> _sampleMenus = [
-    Menu(
-      id: 1,
-      restaurantId: 1,
-      nom: 'Brik à l’œuf',
-      description: 'Thon, câpres et œuf frais dans une feuille croustillante.',
-      prix: 8.5,
-      categorie: 'Entrée',
-      quantite: 14,
-      dateCreation: DateTime(2025, 1, 12),
-    ),
-    Menu(
-      id: 2,
-      restaurantId: 1,
-      nom: 'Couscous du chef',
-      description: 'Légumes de saison et agneau mijoté aux épices.',
-      prix: 26,
-      categorie: 'Plat',
-      quantite: 8,
-      dateCreation: DateTime(2025, 1, 12),
-    ),
-    Menu(
-      id: 3,
-      restaurantId: 1,
-      nom: 'Bowl méditerranéen',
-      description: 'Céréales, légumes frais et sauce aux herbes.',
-      prix: 18,
-      categorie: 'Plat',
-      quantite: 6,
-      dateCreation: DateTime(2025, 1, 12),
-    ),
-    Menu(
-      id: 4,
-      restaurantId: 1,
-      nom: 'Pâtisseries maison',
-      description: 'Sélection du jour, préparée sur place.',
-      prix: 12,
-      categorie: 'Dessert',
-      quantite: 0,
-      disponible: false,
-      dateCreation: DateTime(2025, 1, 12),
-    ),
-    Menu(
-      id: 5,
-      restaurantId: 1,
-      nom: 'Citronnade à la menthe',
-      description: 'Citron fraîchement pressé et menthe.',
-      prix: 6,
-      categorie: 'Boisson',
-      quantite: 20,
-      dateCreation: DateTime(2025, 1, 12),
-    ),
-  ];
+  final _menuService = MenuService();
+  List<Menu> _menus = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMenus();
+  }
+
+  Future<void> _loadMenus() async {
+    final restaurantId = widget.restaurant.id;
+    if (restaurantId == null) {
+      setState(() {
+        _loading = false;
+        _error = 'Restaurant introuvable.';
+      });
+      return;
+    }
+    try {
+      final menus = await _menuService.getMenusByRestaurant(restaurantId);
+      if (!mounted) return;
+      setState(() {
+        _menus = menus;
+        _loading = false;
+        _error = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Impossible de charger la carte.';
+      });
+    }
+  }
+
+  /// Ouvre le détail du plat, puis recharge la carte au retour
+  /// (le stock a pu changer après une réservation).
+  Future<void> _openDetail(Menu menu) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MenuDetailClientScreen(
+          menu: menu,
+          restaurant: widget.restaurant,
+        ),
+      ),
+    );
+    if (mounted) _loadMenus();
+  }
+
+  Future<void> _openReservation(Menu menu) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ReservationFormScreen(
+          menu: menu,
+          restaurant: widget.restaurant,
+        ),
+      ),
+    );
+    if (mounted) _loadMenus();
+  }
 
   static const _categories = [
     ('Tout', Icons.restaurant_menu_rounded),
@@ -76,6 +89,7 @@ class _ClientRestaurantMenuScreenState
     ('Plat', Icons.dinner_dining_rounded),
     ('Dessert', Icons.cake_rounded),
     ('Boisson', Icons.local_bar_rounded),
+    ('Menu complet', Icons.lunch_dining_rounded),
   ];
 
   final _searchController = TextEditingController();
@@ -89,7 +103,7 @@ class _ClientRestaurantMenuScreenState
 
   List<Menu> get _visibleMenus {
     final query = _query.trim().toLowerCase();
-    return _sampleMenus.where((menu) {
+    return _menus.where((menu) {
       final matchesCategory =
           _selectedCategory == 'Tout' || menu.categorie == _selectedCategory;
       final matchesQuery = query.isEmpty ||
@@ -269,7 +283,17 @@ class _ClientRestaurantMenuScreenState
               ),
             ),
           ),
-          if (menus.isEmpty)
+          if (_loading)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: Text(_error!)),
+            )
+          else if (menus.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
               child: Center(child: Text('Aucun plat dans cette catégorie.')),
@@ -280,41 +304,21 @@ class _ClientRestaurantMenuScreenState
               sliver: SliverList.separated(
                 itemCount: menus.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, index) => _ClientMenuCard(
-                  menu: menus[index],
-                ),
+                itemBuilder: (context, index) {
+                  final menu = menus[index];
+                  return _ClientMenuCard(
+                    menu: menu,
+                    reservable: ReservationService.isMenuReservable(
+                      menu,
+                      widget.restaurant,
+                    ),
+                    onTap: () => _openDetail(menu),
+                    onReserve: () => _openReservation(menu),
+                  );
+                },
               ),
             ),
         ],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: AppColors.border)),
-          ),
-          child: SizedBox(
-            height: 50,
-            child: FilledButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'La commande sera bientôt disponible.',
-                      ),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-              },
-              icon: const Icon(Icons.shopping_bag_outlined),
-              label: const Text('Continuer'),
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -402,91 +406,124 @@ class _RestaurantCover extends StatelessWidget {
 }
 
 class _ClientMenuCard extends StatelessWidget {
-  const _ClientMenuCard({required this.menu});
+  const _ClientMenuCard({
+    required this.menu,
+    required this.reservable,
+    required this.onTap,
+    required this.onReserve,
+  });
 
   final Menu menu;
+  final bool reservable;
+  final VoidCallback onTap;
+  final VoidCallback onReserve;
 
   @override
   Widget build(BuildContext context) {
-    final available = menu.disponible && menu.quantite > 0;
+    final available = reservable;
     final lowStock = available && menu.quantite <= 5;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(13),
-        child: Row(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.warningBackground, AppColors.background],
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(13),
+          child: Row(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.warningBackground, AppColors.background],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                borderRadius: BorderRadius.circular(14),
+                child: Icon(
+                  _categoryIcon(menu.categorie),
+                  color: _categoryColor(menu.categorie),
+                  size: 29,
+                ),
               ),
-              child: Icon(
-                _categoryIcon(menu.categorie),
-                color: _categoryColor(menu.categorie),
-                size: 29,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      menu.nom,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      menu.description ?? '',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.muted,
+                          ),
+                    ),
+                    const SizedBox(height: 7),
+                    if (!available)
+                      const MenuAvailabilityBadge(available: false)
+                    else if (lowStock)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.warningBackground,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Plus que ${menu.quantite}',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppColors.text,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                      )
+                    else
+                      const MenuAvailabilityBadge(available: true),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    menu.nom,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    '${menu.prix.toStringAsFixed(menu.prix % 1 == 0 ? 0 : 1)} DT',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: AppColors.primary,
                           fontWeight: FontWeight.w800,
                         ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    menu.description ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.muted,
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 34,
+                    child: FilledButton(
+                      onPressed: available ? onReserve : null,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        textStyle: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
                         ),
+                      ),
+                      child: const Text('Réserver'),
+                    ),
                   ),
-                  const SizedBox(height: 7),
-                  if (!available)
-                    const MenuAvailabilityBadge(available: false)
-                  else if (lowStock)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.warningBackground,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'Plus que ${menu.quantite}',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppColors.text,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    )
-                  else
-                    const MenuAvailabilityBadge(available: true),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${menu.prix.toStringAsFixed(menu.prix % 1 == 0 ? 0 : 1)} DT',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

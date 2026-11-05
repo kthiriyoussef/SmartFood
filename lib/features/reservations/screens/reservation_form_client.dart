@@ -1,8 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smartfood/app/theme.dart';
+import 'package:smartfood/features/reservations/models/reservation.dart';
+import 'package:smartfood/features/reservations/screens/menu_detail_client_screen.dart';
+import 'package:smartfood/features/reservations/screens/reservation_confirmation_screen.dart';
+import 'package:smartfood/features/reservations/services/reservation_service.dart';
+import 'package:smartfood/features/restaurants/models/menu.dart';
+import 'package:smartfood/features/restaurants/models/restaurant.dart';
+import 'package:smartfood/features/users/models/client_profile.dart';
+import 'package:smartfood/features/users/repositories/client_profile_repository.dart';
 
+/// Création d'une réservation pour un plat précis.
+///
+/// Le plat et le restaurant sont imposés par l'écran appelant (carte ou
+/// détail du plat) : le client choisit seulement la quantité, le créneau de
+/// retrait et renseigne ses coordonnées.
 class ReservationFormScreen extends StatefulWidget {
-  const ReservationFormScreen({super.key});
+  const ReservationFormScreen({
+    super.key,
+    required this.menu,
+    required this.restaurant,
+  });
+
+  final Menu menu;
+  final Restaurant restaurant;
 
   @override
   State<ReservationFormScreen> createState() => _ReservationFormScreenState();
@@ -13,418 +34,477 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _noteController = TextEditingController();
+  final _service = ReservationService();
 
-  final _availableQty = 20;
-  final double _unitPrice = 6.5;
-  int _reservedQty = 2;
-  TimeOfDay _pickupTime = const TimeOfDay(hour: 18, minute: 30);
-  _CountryOption _selectedCountry = const _CountryOption(
-    code: '+216',
-    label: 'Tunisie',
-    flag: '🇹🇳',
-  );
+  static const List<CountryOption> _countries = CountryOption.all;
+  final _profileRepository = ClientProfileRepository();
 
-  final List<_CountryOption> _countries = const [
-    _CountryOption(code: '+216', label: 'Tunisie', flag: '🇹🇳'),
-    _CountryOption(code: '+33', label: 'France', flag: '🇫🇷'),
-    _CountryOption(code: '+1', label: 'États-Unis', flag: '🇺🇸'),
-    _CountryOption(code: '+49', label: 'Allemagne', flag: '🇩🇪'),
-  ];
+  CountryOption _country = _countries.first;
+
+  /// Vrai si le formulaire a été pré-rempli depuis le profil.
+  bool _prefilled = false;
+  int _quantity = 1;
+  late DateTime _today;
+  late DateTime _day;
+  late TimeOfDay _time;
+  String? _pickupError;
+  bool _submitting = false;
+
+  int get _maxQuantity => ReservationService.maxQuantityFor(widget.menu);
+
+  DateTime get _pickupAt =>
+      DateTime(_day.year, _day.month, _day.day, _time.hour, _time.minute);
+
+  double get _total => widget.menu.prix * _quantity;
+
+  /// Aujourd'hui n'est proposé que s'il reste un créneau avant la fermeture.
+  bool get _todayAvailable {
+    final earliest = ReservationService.earliestPickup();
+    return earliest != null && DateUtils.isSameDay(earliest, _today);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _today = DateUtils.dateOnly(now);
+    final earliest = ReservationService.earliestPickup(now: now) ??
+        _today.add(
+          const Duration(days: 1, hours: ReservationService.openingHour),
+        );
+    _day = DateUtils.dateOnly(earliest);
+    _time = TimeOfDay.fromDateTime(earliest);
+    _prefillFromProfile();
+  }
+
+  Future<void> _prefillFromProfile() async {
+    final profile = await _profileRepository.get();
+    if (profile == null || !mounted) return;
+    setState(() {
+      _firstNameController.text = profile.firstName;
+      _lastNameController.text = profile.lastName;
+      _phoneController.text = profile.phone;
+      _country = CountryOption.byCode(profile.dialCode);
+      _prefilled = true;
+    });
+  }
+
+  /// Après la première réservation, le profil est créé automatiquement
+  /// pour ne plus avoir à ressaisir ses coordonnées.
+  Future<void> _saveProfileIfMissing() async {
+    if (await _profileRepository.get() != null) return;
+    await _profileRepository.save(
+      ClientProfile(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        dialCode: _country.code,
+        phone: _phoneController.text.replaceAll(RegExp(r'\s'), ''),
+      ),
+    );
+  }
 
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _phoneController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
+  // ------------------------------------------------------------- Créneau
+
+  void _selectDay(DateTime day) {
+    setState(() {
+      _day = day;
+      // Si l'heure choisie est déjà passée pour aujourd'hui, on avance
+      // automatiquement au premier créneau possible.
+      final earliest = ReservationService.earliestPickup();
+      if (earliest != null &&
+          DateUtils.isSameDay(day, earliest) &&
+          _pickupAt.isBefore(earliest)) {
+        _time = TimeOfDay.fromDateTime(earliest);
+      }
+      _pickupError = ReservationService.validatePickup(_pickupAt);
+    });
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _time,
+      helpText: 'Heure de retrait',
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (picked == null) return;
+    setState(() {
+      _time = picked;
+      _pickupError = ReservationService.validatePickup(_pickupAt);
+    });
+  }
+
+  // -------------------------------------------------------------- Submit
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    FocusScope.of(context).unfocus();
+
+    final pickupError = ReservationService.validatePickup(_pickupAt);
+    final formValid = _formKey.currentState!.validate();
+    setState(() => _pickupError = pickupError);
+    if (!formValid || pickupError != null) return;
+
+    setState(() => _submitting = true);
+    try {
+      final reservation = await _service.createReservation(
+        menu: widget.menu,
+        restaurant: widget.restaurant,
+        quantity: _quantity,
+        pickupAt: _pickupAt,
+        firstName: _firstNameController.text,
+        lastName: _lastNameController.text,
+        dialCode: _country.code,
+        phone: _phoneController.text,
+        note: _noteController.text,
+      );
+      await _saveProfileIfMissing();
+      if (!mounted) return;
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => ReservationConfirmationScreen(
+            reservation: reservation,
+          ),
+        ),
+      );
+    } on ReservationException catch (e) {
+      _showError(e.message);
+    } catch (_) {
+      _showError('Une erreur est survenue. Réessayez.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.error,
+        ),
+      );
+  }
+
+  // --------------------------------------------------------------- Build
+
   @override
   Widget build(BuildContext context) {
-    final totalPrice = _reservedQty * _unitPrice;
+    final theme = Theme.of(context);
+    final tomorrow = _today.add(const Duration(days: 1));
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
-        title: const Text('Créer une réservation'),
-        centerTitle: false,
+        title: const Text('Nouvelle réservation'),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, Color(0xFF3F8D47)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            _DishSummary(menu: widget.menu, restaurant: widget.restaurant),
+            const SizedBox(height: 16),
+
+            // ------------------------------------------------ Quantité
+            _Section(
+              icon: Icons.shopping_basket_outlined,
+              title: 'Quantité',
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _quantity >= _maxQuantity
+                          ? (_maxQuantity == widget.menu.quantite
+                              ? 'Stock maximum atteint'
+                              : 'Maximum $_maxQuantity par réservation')
+                          : '${widget.menu.quantite} portion(s) disponible(s)',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: _quantity >= _maxQuantity
+                            ? AppColors.warning
+                            : AppColors.muted,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.25),
-                        blurRadius: 18,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.18),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.restaurant_menu_rounded,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.16),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '$_availableQty disponibles',
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                          ),
-                        ],
+                  _StepButton(
+                    icon: Icons.remove_rounded,
+                    onPressed: _quantity > 1
+                        ? () => setState(() => _quantity--)
+                        : null,
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text(
+                      '$_quantity',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'Wrap végétal du jour',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  _StepButton(
+                    icon: Icons.add_rounded,
+                    onPressed: _quantity < _maxQuantity
+                        ? () => setState(() => _quantity++)
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // ------------------------------------------------- Retrait
+            _Section(
+              icon: Icons.schedule_rounded,
+              title: 'Retrait',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DayChip(
+                          label: 'Aujourd’hui',
+                          selected: DateUtils.isSameDay(_day, _today),
+                          enabled: _todayAvailable,
+                          onTap: () => _selectDay(_today),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Soupe + plat + dessert · 100% anti-gaspi',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withOpacity(0.9),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _DayChip(
+                          label: 'Demain',
+                          selected: DateUtils.isSameDay(_day, tomorrow),
+                          enabled: true,
+                          onTap: () => _selectDay(tomorrow),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.attach_money_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_unitPrice.toStringAsFixed(2)} DT / unité',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
-                ),
-
-                const SizedBox(height: 22),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.black.withOpacity(0.04)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 12,
-                        offset: const Offset(0, 8),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: _pickTime,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'Heure de retrait',
+                        prefixIcon: const Icon(Icons.access_time_rounded),
+                        suffixIcon: const Icon(Icons.edit_outlined, size: 20),
+                        errorText: _pickupError,
+                        errorMaxLines: 2,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Informations client',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.text,
+                      child: Text(
+                        Reservation.formatPickup(_pickupAt),
+                        style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Row(
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ouvert de ${ReservationService.openingHour}h00 à '
+                    '${ReservationService.closingHour}h00 · préparation '
+                    '${ReservationService.preparationDelay.inMinutes} min minimum',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // --------------------------------------------- Coordonnées
+            _Section(
+              icon: Icons.person_outline_rounded,
+              title: 'Vos coordonnées',
+              child: Column(
+                children: [
+                  if (_prefilled)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.successBackground,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
                         children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _firstNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Prénom',
-                                prefixIcon: Icon(Icons.person_outline_rounded),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Le prénom est requis.';
-                                }
-                                return null;
-                              },
-                            ),
+                          Icon(
+                            Icons.verified_user_outlined,
+                            size: 18,
+                            color: AppColors.primary,
                           ),
-                          const SizedBox(width: 12),
+                          SizedBox(width: 8),
                           Expanded(
-                            child: TextFormField(
-                              controller: _lastNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Nom',
+                            child: Text(
+                              'Rempli depuis votre profil',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
                               ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Le nom est requis.';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'Téléphone',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.muted,
+                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _firstNameController,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                          decoration: _inputDecoration('Prénom'),
+                          validator: (v) =>
+                              ReservationService.validateName(v, 'Prénom'),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.black.withOpacity(0.08),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            InkWell(
-                              onTap: _showCountryPicker,
-                              borderRadius: const BorderRadius.horizontal(
-                                left: Radius.circular(12),
-                              ),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 16,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      _selectedCountry.flag,
-                                      style: const TextStyle(fontSize: 22),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _selectedCountry.code,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.text,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const VerticalDivider(width: 1),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _phoneController,
-                                keyboardType: TextInputType.number,
-                                maxLength: 8,
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 16,
-                                  ),
-                                  counterText: '',
-                                  hintText: 'Ex: 22345678',
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Le numéro est requis.';
-                                  }
-                                  if (!RegExp(r'^\d{8}$').hasMatch(value.trim())) {
-                                    return 'Entrez 8 chiffres.';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _lastNameController,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                          decoration: _inputDecoration('Nom'),
+                          validator: (v) =>
+                              ReservationService.validateName(v, 'Nom'),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'Heure de retrait',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.muted,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      InkWell(
-                        onTap: _selectPickupTime,
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[\d\s]')),
+                      LengthLimitingTextInputFormatter(15),
+                    ],
+                    decoration: _inputDecoration('Téléphone').copyWith(
+                      hintText: _country.code == '+216' ? '22 345 678' : null,
+                      prefixIcon: InkWell(
+                        onTap: _showCountryPicker,
                         borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 16,
-                            horizontal: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.background,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.black.withOpacity(0.05),
-                            ),
-                          ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.alarm_rounded,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 12),
+                              Text(_country.flag,
+                                  style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 6),
                               Text(
-                                _pickupTime.format(context),
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
-                                      color: AppColors.text,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                _country.code,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                              const Spacer(),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: AppColors.muted,
-                              ),
+                              const Icon(Icons.arrow_drop_down_rounded),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'Quantité à réserver',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.muted,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              onPressed: _reservedQty > 1
-                                  ? () => setState(() => _reservedQty--)
-                                  : null,
-                              icon: const Icon(Icons.remove_circle_outline_rounded),
-                              color: AppColors.primary,
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: Text(
-                                  '$_reservedQty',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium
-                                      ?.copyWith(
-                                        color: AppColors.text,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: _reservedQty < _availableQty
-                                  ? () => setState(() => _reservedQty++)
-                                  : null,
-                              icon: const Icon(Icons.add_circle_outline_rounded),
-                              color: AppColors.primary,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Total estimé',
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: AppColors.muted,
-                            ),
-                          ),
-                          Text(
-                            '${totalPrice.toStringAsFixed(2)} DT',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _submitReservation,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
                     ),
-                    icon: const Icon(Icons.check_circle_rounded),
-                    label: const Text('Confirmer la réservation'),
+                    validator: (v) =>
+                        ReservationService.validatePhone(v, _country.code),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _noteController,
+                    maxLines: 2,
+                    maxLength: 200,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: _inputDecoration(
+                      'Note pour le restaurant (facultatif)',
+                    ).copyWith(hintText: 'Allergies, sans piment…'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // ------------------------------------------------ Récap
+            _Section(
+              icon: Icons.receipt_long_outlined,
+              title: 'Récapitulatif',
+              child: Column(
+                children: [
+                  _RecapRow(
+                    label: '${widget.menu.nom} × $_quantity',
+                    value: formatPrice(_total),
+                  ),
+                  const SizedBox(height: 6),
+                  _RecapRow(
+                    label: 'Paiement',
+                    value: 'Sur place au retrait',
+                    muted: true,
+                  ),
+                  const Divider(height: 24),
+                  _RecapRow(
+                    label: 'Total',
+                    value: formatPrice(_total),
+                    bold: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          child: SizedBox(
+            height: 54,
+            child: FilledButton(
+              onPressed: _submitting ? null : _submit,
+              child: _submitting
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(
+                      'Confirmer la réservation · ${formatPrice(_total)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
             ),
           ),
         ),
@@ -432,82 +512,249 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
     );
   }
 
-  Future<void> _selectPickupTime() async {
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: _pickupTime,
-      helpText: 'Choisir l’heure de retrait',
-    );
-
-    if (pickedTime != null) {
-      setState(() => _pickupTime = pickedTime);
-    }
-  }
+  InputDecoration _inputDecoration(String label) => InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: AppColors.background,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+      );
 
   void _showCountryPicker() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final country in _countries)
+              ListTile(
+                leading:
+                    Text(country.flag, style: const TextStyle(fontSize: 26)),
+                title: Text(country.label),
+                trailing: Text(
+                  country.code,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                selected: country == _country,
+                onTap: () {
+                  setState(() => _country = country);
+                  Navigator.of(sheetContext).pop();
+                  // Revalide le numéro avec la règle du nouveau pays.
+                  _formKey.currentState?.validate();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================================================================ Widgets
+
+class _DishSummary extends StatelessWidget {
+  const _DishSummary({required this.menu, required this.restaurant});
+
+  final Menu menu;
+  final Restaurant restaurant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1C4E25), AppColors.primary],
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              categoryIcon(menu.categorie),
+              color: AppColors.secondary,
+              size: 30,
+            ),
           ),
-          child: SafeArea(
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pays / indicatif',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  menu.nom,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 12),
-                ..._countries.map(
-                  (country) => ListTile(
-                    leading: Text(country.flag, style: const TextStyle(fontSize: 26)),
-                    title: Text(country.label),
-                    trailing: Text(country.code),
-                    onTap: () {
-                      setState(() => _selectedCountry = country);
-                      Navigator.of(context).pop();
-                    },
+                const SizedBox(height: 4),
+                Text(
+                  '${restaurant.nom} · ${menu.categorie}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withAlpha(215),
                   ),
                 ),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-
-  void _submitReservation() {
-    if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Réservation créée pour ${_firstNameController.text.trim()} ${_lastNameController.text.trim()} • $_reservedQty article(s)',
+          Text(
+            formatPrice(menu.prix),
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.primary,
-        ),
-      );
-    }
+        ],
+      ),
+    );
   }
 }
 
-class _CountryOption {
-  const _CountryOption({
-    required this.code,
-    required this.label,
-    required this.flag,
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.icon,
+    required this.title,
+    required this.child,
   });
 
-  final String code;
+  final IconData icon;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  const _StepButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      onPressed: onPressed,
+      icon: Icon(icon),
+    );
+  }
+}
+
+class _DayChip extends StatelessWidget {
+  const _DayChip({
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
   final String label;
-  final String flag;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = !enabled
+        ? AppColors.muted
+        : selected
+            ? Colors.white
+            : AppColors.text;
+    return Material(
+      color: selected ? AppColors.primary : AppColors.background,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+            ),
+          ),
+          child: Text(
+            enabled ? label : '$label (fermé)',
+            style: TextStyle(color: foreground, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecapRow extends StatelessWidget {
+  const _RecapRow({
+    required this.label,
+    required this.value,
+    this.bold = false,
+    this.muted = false,
+  });
+
+  final String label;
+  final String value;
+  final bool bold;
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = (bold
+            ? Theme.of(context).textTheme.titleMedium
+            : Theme.of(context).textTheme.bodyMedium)
+        ?.copyWith(
+      fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+      color: muted ? AppColors.muted : null,
+    );
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: style)),
+        Text(
+          value,
+          style: style?.copyWith(color: bold ? AppColors.primary : null),
+        ),
+      ],
+    );
+  }
 }

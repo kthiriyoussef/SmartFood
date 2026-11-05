@@ -2,7 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:smartfood/app/theme.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
+import 'package:smartfood/features/reservations/services/reservation_service.dart';
 
 class ReservationDetailScreen extends StatefulWidget {
   const ReservationDetailScreen({super.key, required this.reservation});
@@ -10,7 +12,8 @@ class ReservationDetailScreen extends StatefulWidget {
   final Reservation reservation;
 
   @override
-  State<ReservationDetailScreen> createState() => _ReservationDetailScreenState();
+  State<ReservationDetailScreen> createState() =>
+      _ReservationDetailScreenState();
 }
 
 class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
@@ -23,31 +26,94 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
     _reservation = widget.reservation;
   }
 
-  bool get _isCancelled => _reservation.status == 'ANNULEE';
+  bool _cancelling = false;
+
+  bool get _isCancelled => _reservation.status == ReservationStatus.annulee;
+
+  /// Annulation enregistrée en base ; les portions sont remises en stock.
+  Future<void> _cancel(double maxDrag) async {
+    setState(() {
+      _cancelling = true;
+      _dragOffset = maxDrag;
+    });
+    try {
+      final updated = await ReservationService().cancelByClient(_reservation);
+      if (!mounted) return;
+      setState(() => _reservation = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Réservation annulée.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on ReservationException catch (e) {
+      if (!mounted) return;
+      setState(() => _dragOffset = 0);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
+
+  String get _importantNote {
+    final base = switch (_reservation.status) {
+      ReservationStatus.enAttente =>
+        'Votre réservation attend la confirmation du restaurant. '
+            'Vous pouvez encore l’annuler.',
+      ReservationStatus.confirmee =>
+        'Réservation confirmée. Vous pouvez encore l’annuler tant que la '
+            'préparation n’a pas commencé.',
+      ReservationStatus.preparation =>
+        'Votre plat est en préparation. L’annulation n’est plus possible.',
+      ReservationStatus.prete =>
+        'Votre commande est prête ! Présentez votre QR code ou votre code PIN.',
+      ReservationStatus.recuperee => 'Commande récupérée. Bon appétit !',
+      _ => 'Cette réservation a été annulée.',
+    };
+    final note = _reservation.note;
+    return note == null ? base : '$base\n\nVotre note : « $note »';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final restaurantName = _reservation.restaurantName ?? 'Restaurant SmartFood';
-    final dishNames = _reservation.dishNames ?? 'Plat du jour';
-    final importantNote =
-        _reservation.importantNote ?? 'Votre commande est en cours de préparation.';
-    final hasAccessCode =
-        _reservation.status != 'ANNULEE' && _reservation.status != 'RECUPEREE';
+    final restaurantName = _reservation.restaurantName;
+    final dishNames =
+        '${_reservation.dishNames} · ${formatTotal(_reservation.total)}';
+    final importantNote = _importantNote;
+    final hasAccessCode = _reservation.isActive;
 
     final statusSteps = [
       _StatusStep(title: 'Réservée', isDone: true),
-      _StatusStep(title: 'Confirmée', isDone: _reservation.status != 'EN_ATTENTE'),
+      _StatusStep(
+        title: 'Confirmée',
+        isDone: {
+          ReservationStatus.confirmee,
+          ReservationStatus.preparation,
+          ReservationStatus.prete,
+          ReservationStatus.recuperee,
+        }.contains(_reservation.status),
+      ),
       _StatusStep(
         title: 'Prête',
-        isDone: _reservation.status == 'PRETE' || _reservation.status == 'RECUPEREE',
+        isDone: _reservation.status == ReservationStatus.prete ||
+            _reservation.status == ReservationStatus.recuperee,
       ),
-      _StatusStep(title: 'Récupérée', isDone: _reservation.status == 'RECUPEREE'),
+      _StatusStep(
+          title: 'Récupérée',
+          isDone: _reservation.status == ReservationStatus.recuperee),
     ];
 
     final sliderWidth = 300.0;
     final handleSize = 52.0;
     final maxDrag = sliderWidth - handleSize - 18;
-    final actualOffset = _isCancelled ? maxDrag : _dragOffset.clamp(0.0, maxDrag);
+    final actualOffset =
+        _isCancelled ? maxDrag : _dragOffset.clamp(0.0, maxDrag);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -104,19 +170,25 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Réf. ${_reservation.id}',
-                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: Colors.white.withOpacity(0.76),
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                  'Réf. ${_reservation.reference}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelLarge
+                                      ?.copyWith(
+                                        color: Colors.white.withOpacity(0.76),
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   _reservation.clientName,
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                 ),
                               ],
                             ),
@@ -132,10 +204,13 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                             ),
                             child: Text(
                               _statusLabel(_reservation.status),
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                             ),
                           ),
                         ],
@@ -162,7 +237,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                       _detailRow(
                         context,
                         Icons.phone_outlined,
-                        _reservation.phoneNumber ?? '+33 6 00 00 00 00',
+                        _reservation.phoneNumber,
                       ),
                     ],
                   ),
@@ -196,10 +271,13 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                           const SizedBox(width: 8),
                           Text(
                             'Important',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.text,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.text,
+                                ),
                           ),
                         ],
                       ),
@@ -207,9 +285,9 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                       Text(
                         importantNote,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.text,
-                          height: 1.5,
-                        ),
+                              color: AppColors.text,
+                              height: 1.5,
+                            ),
                       ),
                     ],
                   ),
@@ -235,10 +313,11 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                     children: [
                       Text(
                         'Progression',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.text,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.text,
+                                ),
                       ),
                       const SizedBox(height: 16),
                       ...statusSteps.asMap().entries.map((entry) {
@@ -261,7 +340,8 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                                     shape: BoxShape.circle,
                                   ),
                                   child: step.isDone
-                                      ? const Icon(Icons.check, size: 12, color: Colors.white)
+                                      ? const Icon(Icons.check,
+                                          size: 12, color: Colors.white)
                                       : null,
                                 ),
                                 if (!isLast)
@@ -275,13 +355,21 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Padding(
-                                padding: EdgeInsets.only(top: 2, bottom: isLast ? 0 : 12),
+                                padding: EdgeInsets.only(
+                                    top: 2, bottom: isLast ? 0 : 12),
                                 child: Text(
                                   step.title,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: step.isDone ? FontWeight.w700 : FontWeight.w500,
-                                    color: step.isDone ? AppColors.text : AppColors.muted,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        fontWeight: step.isDone
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                        color: step.isDone
+                                            ? AppColors.text
+                                            : AppColors.muted,
+                                      ),
                                 ),
                               ),
                             ),
@@ -301,7 +389,8 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.black.withOpacity(0.04)),
+                            border: Border.all(
+                                color: Colors.black.withOpacity(0.04)),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.03),
@@ -314,17 +403,22 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                             children: [
                               Text(
                                 'Code PIN',
-                                style: Theme.of(context).textTheme.labelLarge
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
                                     ?.copyWith(color: AppColors.muted),
                               ),
                               const SizedBox(height: 12),
                               Text(
                                 _reservation.pinCode,
-                                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.primary,
-                                  letterSpacing: 2,
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .displaySmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.primary,
+                                      letterSpacing: 2,
+                                    ),
                               ),
                             ],
                           ),
@@ -337,7 +431,8 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.black.withOpacity(0.04)),
+                            border: Border.all(
+                                color: Colors.black.withOpacity(0.04)),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.03),
@@ -350,45 +445,17 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                             children: [
                               Text(
                                 'Code QR',
-                                style: Theme.of(context).textTheme.labelLarge
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
                                     ?.copyWith(color: AppColors.muted),
                               ),
                               const SizedBox(height: 10),
-                              Container(
-                                width: 90,
-                                height: 90,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppColors.primary.withOpacity(0.25),
-                                    ),
-                                  ),
-                                  child: GridView.builder(
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 4,
-                                      crossAxisSpacing: 3,
-                                      mainAxisSpacing: 3,
-                                    ),
-                                    itemCount: 16,
-                                    itemBuilder: (context, index) {
-                                      final isDark = (index + (index ~/ 4)) % 2 == 0;
-                                      return Container(
-                                        decoration: BoxDecoration(
-                                          color: isDark ? AppColors.primary : Colors.white,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
+                              QrImageView(
+                                data:
+                                    ReservationService.qrPayload(_reservation),
+                                size: 96,
+                                padding: EdgeInsets.zero,
                               ),
                             ],
                           ),
@@ -413,61 +480,62 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                       ],
                     ),
                     child: Text(
-                      'Cette réservation a été annulée. Aucun code PIN ni QR n’est actif.',
+                      _isCancelled
+                          ? 'Cette réservation a été annulée. Aucun code PIN ni QR n’est actif.'
+                          : 'Commande récupérée. Le code de retrait n’est plus actif.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.error,
-                        fontWeight: FontWeight.w600,
-                      ),
+                            color: _isCancelled
+                                ? AppColors.error
+                                : AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ),
                 const SizedBox(height: 22),
                 if (_isCancelled)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       color: AppColors.error.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.error.withOpacity(0.18)),
+                      border:
+                          Border.all(color: AppColors.error.withOpacity(0.18)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.cancel_outlined, color: AppColors.error),
+                        const Icon(Icons.cancel_outlined,
+                            color: AppColors.error),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             'Réservation annulée avec succès.',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.error,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.error,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ),
                       ],
                     ),
                   )
+                else if (!_reservation.canBeCancelledByClient)
+                  const SizedBox.shrink()
                 else
                   GestureDetector(
                     onHorizontalDragUpdate: (details) {
+                      if (_cancelling) return;
                       setState(() {
                         _dragOffset += details.delta.dx;
                       });
                     },
                     onHorizontalDragEnd: (details) {
+                      if (_cancelling) return;
                       if (_dragOffset >= maxDrag * 0.9) {
-                        setState(() {
-                          _reservation = Reservation(
-                            id: _reservation.id,
-                            clientName: _reservation.clientName,
-                            pickupTime: _reservation.pickupTime,
-                            status: 'ANNULEE',
-                            pinCode: '',
-                            phoneNumber: _reservation.phoneNumber,
-                            restaurantName: _reservation.restaurantName,
-                            dishNames: _reservation.dishNames,
-                            importantNote: _reservation.importantNote,
-                          );
-                          _dragOffset = maxDrag;
-                        });
+                        _cancel(maxDrag);
                       } else {
                         setState(() => _dragOffset = 0);
                       }
@@ -508,7 +576,8 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                           children: [
                             Positioned.fill(
                               child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                filter:
+                                    ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                                 child: Container(
                                   color: Colors.white.withOpacity(0.08),
                                 ),
@@ -519,11 +588,14 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                                 alignment: Alignment.center,
                                 child: Text(
                                   'Glisser pour annuler',
-                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.2,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelLarge
+                                      ?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.2,
+                                      ),
                                 ),
                               ),
                             ),
@@ -584,32 +656,19 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
           child: Text(
             value,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white,
-            ),
+                  color: Colors.white,
+                ),
           ),
         ),
       ],
     );
   }
 
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'PRETE':
-        return 'Prête';
-      case 'RECUPEREE':
-        return 'Récupérée';
-      case 'ANNULEE':
-        return 'Annulée';
-      case 'CONFIRMEE':
-        return 'Confirmée';
-      case 'PREPARATION':
-        return 'Préparation';
-      case 'EN_ATTENTE':
-      default:
-        return 'En attente';
-    }
-  }
+  String _statusLabel(String status) => ReservationStatus.label(status);
 }
+
+String formatTotal(double value) =>
+    '${value.toStringAsFixed(value % 1 == 0 ? 0 : 2)} DT';
 
 class _StatusStep {
   const _StatusStep({required this.title, required this.isDone});

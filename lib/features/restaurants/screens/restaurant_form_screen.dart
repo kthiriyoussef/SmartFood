@@ -1,134 +1,213 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
+import 'package:smartfood/features/restaurants/services/restaurant_service.dart';
 import 'package:smartfood/features/restaurants/widgets/gradient_action_button.dart';
-import 'package:smartfood/features/restaurants/widgets/restaurant_status_badge.dart';
 
-class RestaurantFormScreen extends StatelessWidget {
+/// Création / modification d'un restaurant.
+/// Renvoie l'id du restaurant enregistré via `Navigator.pop`.
+class RestaurantFormScreen extends StatefulWidget {
   const RestaurantFormScreen({super.key, this.restaurant});
 
   final Restaurant? restaurant;
 
   @override
-  Widget build(BuildContext context) {
-    final editing = restaurant != null;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(editing ? 'Modifier le restaurant' : 'Nouveau restaurant'),
+  State<RestaurantFormScreen> createState() => _RestaurantFormScreenState();
+}
+
+class _RestaurantFormScreenState extends State<RestaurantFormScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _service = RestaurantService();
+  late final _nom = TextEditingController(text: widget.restaurant?.nom);
+  late final _adresse = TextEditingController(text: widget.restaurant?.adresse);
+  late final _ville = TextEditingController(text: widget.restaurant?.ville);
+  late final _telephone =
+      TextEditingController(text: widget.restaurant?.telephone ?? '+216 ');
+  bool _saving = false;
+
+  bool get _editing => widget.restaurant != null;
+
+  @override
+  void dispose() {
+    _nom.dispose();
+    _adresse.dispose();
+    _ville.dispose();
+    _telephone.dispose();
+    super.dispose();
+  }
+
+  String? _required(String? value, String label, {int min = 2}) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return '$label obligatoire';
+    if (text.length < min) return '$label trop court';
+    return null;
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _saving = true);
+    final base = widget.restaurant;
+    final restaurant = base == null
+        ? Restaurant(
+            nom: _nom.text,
+            adresse: _adresse.text,
+            ville: _ville.text,
+            telephone: _telephone.text,
+            dateCreation: DateTime.now(),
+          )
+        : base.copyWith(
+            nom: _nom.text,
+            adresse: _adresse.text,
+            ville: _ville.text,
+            telephone: _telephone.text,
+          );
+    try {
+      final id = await _service.sauvegarderRestaurant(restaurant);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _editing ? 'Restaurant mis à jour' : 'Restaurant créé',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pop(id);
+    } on RestaurantValidationException catch (e) {
+      _error(e.message);
+    } catch (_) {
+      _error('Enregistrement impossible. Réessayez.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _error(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
       ),
-      body: SafeArea(
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(_editing ? 'Modifier le restaurant' : 'Nouveau restaurant'),
+      ),
+      body: Form(
+        key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
-            _FormIntro(editing: editing),
-            const SizedBox(height: 20),
-            _SectionLabel(
-              title: 'Photo de couverture',
-              subtitle: 'Donnez une identité visuelle à votre établissement',
+            Text(
+              _editing
+                  ? 'Mettez à jour la fiche de votre établissement.'
+                  : 'Ces informations seront visibles par les clients.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: AppColors.muted),
             ),
-            const SizedBox(height: 10),
-            const _ImagePlaceholder(),
-            const SizedBox(height: 22),
-            _SectionLabel(
-              title: 'Informations générales',
-              subtitle: 'Ces informations seront visibles sur votre fiche',
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
                     TextFormField(
-                      initialValue: restaurant?.nom ?? '',
+                      controller: _nom,
                       textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
+                      maxLength: 60,
                       decoration: const InputDecoration(
                         labelText: 'Nom du restaurant',
                         hintText: 'Ex. Le Jardin Gourmand',
                         prefixIcon: Icon(Icons.storefront_outlined),
                       ),
+                      validator: (v) => _required(v, 'Nom'),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 6),
                     TextFormField(
-                      initialValue: restaurant?.adresse ?? '',
+                      controller: _adresse,
                       textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         labelText: 'Adresse',
-                        hintText: 'Numéro et nom de rue',
+                        hintText: 'Rue, quartier',
                         prefixIcon: Icon(Icons.location_on_outlined),
                       ),
+                      validator: (v) => _required(v, 'Adresse', min: 3),
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
-                      initialValue: restaurant?.ville ?? '',
+                      controller: _ville,
                       textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
-                        labelText: 'Zone / Ville',
-                        hintText: 'Ex. Les Berges du Lac, Tunis',
+                        labelText: 'Ville',
+                        hintText: 'Ex. Tunis',
                         prefixIcon: Icon(Icons.map_outlined),
                       ),
+                      validator: (v) => _required(v, 'Ville'),
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
-                      initialValue: restaurant?.telephone ?? '',
+                      controller: _telephone,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[0-9+().\s-]'),
+                        ),
+                      ],
                       decoration: const InputDecoration(
                         labelText: 'Téléphone',
                         hintText: '+216 71 123 456',
                         prefixIcon: Icon(Icons.phone_outlined),
                       ),
+                      validator: (v) {
+                        final digits = (v ?? '').replaceAll(RegExp(r'\D'), '');
+                        if (digits.length < 7 || digits.length > 15) {
+                          return 'Numéro invalide (7 à 15 chiffres)';
+                        }
+                        return null;
+                      },
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 22),
-            _SectionLabel(
-              title: 'Statut',
-              subtitle: 'État de visibilité de votre établissement',
-            ),
-            const SizedBox(height: 10),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+            if (_editing) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.warningBackground,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: AppColors.activeBackground.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.visibility_outlined,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    Icon(Icons.info_outline_rounded, color: AppColors.warning),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Statut du restaurant',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                        'L’archivage et la réactivation se font depuis la '
+                        'fiche du restaurant.',
                       ),
-                    ),
-                    RestaurantStatusBadge(
-                      status: restaurant?.statut ?? RestaurantStatus.actif,
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.muted,
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -140,152 +219,19 @@ class RestaurantFormScreen extends StatelessWidget {
             color: Colors.white,
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
-          child: GradientActionButton(
-            onPressed: () {},
-            icon: Icons.check_rounded,
-            label: editing ? 'Enregistrer les modifications' : 'Créer le restaurant',
-            expand: true,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FormIntro extends StatelessWidget {
-  const _FormIntro({required this.editing});
-
-  final bool editing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.activeBackground.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: const Icon(
-              Icons.storefront_rounded,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  editing
-                      ? 'Votre fiche établissement'
-                      : 'Bienvenue sur SmartFood',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+          child: _saving
+              ? const SizedBox(
+                  height: 52,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : GradientActionButton(
+                  onPressed: _save,
+                  icon: Icons.check_rounded,
+                  label: _editing
+                      ? 'Enregistrer les modifications'
+                      : 'Créer le restaurant',
+                  expand: true,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Quelques informations suffisent pour présenter votre restaurant.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.muted,
-                        height: 1.35,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.muted,
-              ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ImagePlaceholder extends StatelessWidget {
-  const _ImagePlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 148,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(12),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.activeBackground.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: const Icon(
-                  Icons.add_a_photo_outlined,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Ajouter une image',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                'JPG ou PNG · format paysage recommandé',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.muted,
-                    ),
-              ),
-            ],
-          ),
         ),
       ),
     );
