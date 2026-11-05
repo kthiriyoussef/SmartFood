@@ -1,24 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  static const Color primary = Color(0xFF2E7032);
+  static const Color primary = Color(0xFF2E7D32);
   static const Color secondary = Color(0xFFFB8C00);
   static const Color background = Color(0xFFF9F9F7);
   static const Color card = Colors.white;
-  static const Color success = Color(0xFF2E7032);
+  static const Color success = Color(0xFF2E7D32);
+  static const Color activeBackground = Color(0xFFA5D6A7);
+  static const Color successBackground = Color(0xFFE8F5E9);
+  static const Color border = Color(0xFFE0E0E0);
   static const Color warning = Color(0xFFFB8C00);
+  static const Color warningBackground = Color(0xFFFFF3E0);
   static const Color error = Color(0xFFD32F2F);
-  static const Color text = Color(0xFF1C1C1C);
+  static const Color archivedBackground = Color(0xFFFFEBEE);
+  static const Color errorLight = Color(0xFFFFCDD2);
+  static const Color inactiveBackground = Color(0xFFEEEEEE);
+  static const Color text = Color(0xFF242424);
   static const Color muted = Color(0xFF6B7280);
 }
 
 class AppTheme {
   static ThemeData light() {
-    final baseTextTheme = GoogleFonts.interTextTheme();
+    final baseTextTheme = ThemeData.light().textTheme.apply(
+          fontFamily: 'Inter',
+          bodyColor: AppColors.text,
+          displayColor: AppColors.text,
+        );
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'Inter',
       scaffoldBackgroundColor: AppColors.background,
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.primary,
@@ -50,11 +61,11 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: AppColors.card,
-        elevation: 2,
+        elevation: 1,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.black.withValues(alpha: 0.04)),
+          side: const BorderSide(color: AppColors.border),
         ),
       ),
       appBarTheme: const AppBarTheme(
@@ -72,16 +83,22 @@ class AppTheme {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Colors.white,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.muted,
+        type: BottomNavigationBarType.fixed,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

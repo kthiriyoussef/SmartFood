@@ -181,7 +181,7 @@ class _ReservationHistoryClientScreenState
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: ReservationFilter.values.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 10),
+                    separatorBuilder: (context, _) => const SizedBox(width: 10),
                     itemBuilder: (context, index) {
                       final filter = ReservationFilter.values[index];
                       final isSelected = filter == _selectedFilter;
@@ -204,23 +204,23 @@ class _ReservationHistoryClientScreenState
                                         begin: Alignment.centerLeft,
                                         end: Alignment.centerRight,
                                         colors: [
-                                          AppColors.primary.withValues(alpha: 0.18),
-                                          AppColors.secondary.withValues(alpha: 0.16),
+                                          AppColors.primary.withOpacity(0.18),
+                                          AppColors.secondary.withOpacity(0.16),
                                         ],
                                       )
                                     : LinearGradient(
                                         begin: Alignment.centerLeft,
                                         end: Alignment.centerRight,
                                         colors: [
-                                          Colors.white.withValues(alpha: 0.74),
-                                          Colors.white.withValues(alpha: 0.56),
+                                          Colors.white.withOpacity(0.74),
+                                          Colors.white.withOpacity(0.56),
                                         ],
                                       ),
                                 borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
                                   color: isSelected
-                                      ? AppColors.primary.withValues(alpha: 0.28)
-                                      : Colors.white.withValues(alpha: 0.7),
+                                      ? AppColors.primary.withOpacity(0.28)
+                                      : Colors.white.withOpacity(0.7),
                                   width: 1.1,
                                 ),
                                 boxShadow: [
@@ -228,7 +228,7 @@ class _ReservationHistoryClientScreenState
                                     color: (isSelected
                                             ? AppColors.primary
                                             : Colors.black)
-                                        .withValues(alpha: isSelected ? 0.12 : 0.05),
+                                        .withOpacity(isSelected ? 0.12 : 0.05),
                                     blurRadius: isSelected ? 16 : 10,
                                     offset: const Offset(0, 8),
                                   ),
@@ -258,7 +258,7 @@ class _ReservationHistoryClientScreenState
                 Expanded(
                   child: ListView.separated(
                     itemCount: _filteredReservations.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    separatorBuilder: (context, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final reservation = _filteredReservations[index];
                       return ReservationCard(
@@ -316,10 +316,10 @@ class _GlassSummaryCard extends StatelessWidget {
               ],
             ),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+            border: Border.all(color: Colors.white.withOpacity(0.18)),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.34),
+                color: AppColors.primary.withOpacity(0.34),
                 blurRadius: 22,
                 spreadRadius: 0,
                 offset: const Offset(0, 18),
@@ -345,7 +345,7 @@ class _GlassSummaryCard extends StatelessWidget {
                       Text(
                         'Historique et réservations actives',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.7),
+                          color: Colors.white.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -355,7 +355,7 @@ class _GlassSummaryCard extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.14),
+                      color: Colors.white.withOpacity(0.14),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(
@@ -417,9 +417,9 @@ class _SummaryItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
+        color: Colors.white.withOpacity(0.14),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
       ),
       child: Column(
         children: [
@@ -434,7 +434,7 @@ class _SummaryItem extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.82),
+              color: Colors.white.withOpacity(0.82),
               fontWeight: FontWeight.w600,
             ),
           ),

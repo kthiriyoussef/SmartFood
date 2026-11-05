@@ -25,10 +25,10 @@ class ReservationCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.card,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+            border: Border.all(color: Colors.black.withOpacity(0.04)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
+                color: Colors.black.withOpacity(0.03),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -45,7 +45,7 @@ class ReservationCard extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.08),
+                      color: AppColors.primary.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -138,38 +138,38 @@ class ReservationCard extends StatelessWidget {
       case 'PRETE':
         return _StatusMeta(
           label: 'Prête',
-          background: AppColors.success.withValues(alpha: 0.12),
+          background: AppColors.success.withOpacity(0.12),
           foreground: AppColors.primary,
         );
       case 'RECUPEREE':
         return _StatusMeta(
           label: 'Récupérée',
-          background: AppColors.success.withValues(alpha: 0.12),
+          background: AppColors.success.withOpacity(0.12),
           foreground: AppColors.primary,
         );
       case 'ANNULEE':
         return _StatusMeta(
           label: 'Annulée',
-          background: AppColors.error.withValues(alpha: 0.12),
+          background: AppColors.error.withOpacity(0.12),
           foreground: AppColors.error,
         );
       case 'CONFIRMEE':
         return _StatusMeta(
           label: 'Confirmée',
-          background: AppColors.warning.withValues(alpha: 0.16),
+          background: AppColors.warning.withOpacity(0.16),
           foreground: AppColors.warning,
         );
       case 'PREPARATION':
         return _StatusMeta(
           label: 'Préparation',
-          background: AppColors.warning.withValues(alpha: 0.16),
+          background: AppColors.warning.withOpacity(0.16),
           foreground: AppColors.warning,
         );
       case 'EN_ATTENTE':
       default:
         return _StatusMeta(
           label: 'En attente',
-          background: AppColors.warning.withValues(alpha: 0.14),
+          background: AppColors.warning.withOpacity(0.14),
           foreground: AppColors.warning,
         );
     }

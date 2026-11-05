@@ -5,6 +5,8 @@ import 'package:smartfood/features/reservations/screens/reservation_details_clie
 import 'package:smartfood/features/reservations/screens/reservation_form_client.dart';
 import 'package:smartfood/features/reservations/screens/reservation_history_client_screen.dart';
 import 'package:smartfood/features/reservations/screens/reservation_list_restaurant.dart';
+import 'package:smartfood/features/restaurants/screens/client_restaurant_catalog_screen.dart';
+import 'package:smartfood/features/restaurants/screens/restaurant_list_screen.dart';
 
 class ReservationNavigationScreen extends StatelessWidget {
   const ReservationNavigationScreen({super.key});
@@ -21,6 +23,20 @@ class ReservationNavigationScreen extends StatelessWidget {
     );
 
     final items = [
+      _NavItem(
+        title: 'Espace client • Restaurants',
+        subtitle: 'Découvrir les établissements et consulter leurs cartes',
+        color: AppColors.primary,
+        icon: Icons.restaurant_menu_rounded,
+        screen: const ClientRestaurantCatalogScreen(),
+      ),
+      _NavItem(
+        title: 'Gestion des restaurants',
+        subtitle: 'Fiches restaurants et menus indépendants',
+        color: AppColors.primary,
+        icon: Icons.storefront_rounded,
+        screen: const RestaurantListScreen(),
+      ),
       _NavItem(
         title: 'Créer réservation',
         subtitle: 'Formulaire client + stock + heure de retrait',
@@ -67,22 +83,22 @@ class ReservationNavigationScreen extends StatelessWidget {
               Text(
                 'Navigation provisoire',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.text,
-                ),
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.text,
+                    ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Accès rapide à tous les écrans du module réservation',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.muted,
-                ),
+                      color: AppColors.muted,
+                    ),
               ),
               const SizedBox(height: 24),
               Expanded(
                 child: ListView.separated(
                   itemCount: items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 14),
+                  separatorBuilder: (context, _) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
                     final item = items[index];
                     return _BuildNavigationCard(
@@ -122,10 +138,10 @@ class _BuildNavigationCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+            border: Border.all(color: Colors.black.withOpacity(0.04)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withOpacity(0.05),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -137,7 +153,7 @@ class _BuildNavigationCard extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: item.color.withValues(alpha: 0.12),
+                  color: item.color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(item.icon, color: item.color, size: 28),
@@ -150,16 +166,16 @@ class _BuildNavigationCard extends StatelessWidget {
                     Text(
                       item.title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: AppColors.text,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       item.subtitle,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.muted,
-                      ),
+                            color: AppColors.muted,
+                          ),
                     ),
                   ],
                 ),

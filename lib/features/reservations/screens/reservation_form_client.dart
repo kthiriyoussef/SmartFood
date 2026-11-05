@@ -71,7 +71,7 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.25),
+                        color: AppColors.primary.withOpacity(0.25),
                         blurRadius: 18,
                         offset: const Offset(0, 12),
                       ),
@@ -85,7 +85,7 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
+                              color: Colors.white.withOpacity(0.18),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(
@@ -101,7 +101,7 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.16),
+                              color: Colors.white.withOpacity(0.16),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -127,7 +127,7 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
                       Text(
                         'Soupe + plat + dessert · 100% anti-gaspi',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: Colors.white.withOpacity(0.9),
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -160,10 +160,10 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+                    border: Border.all(color: Colors.black.withOpacity(0.04)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
+                        color: Colors.black.withOpacity(0.04),
                         blurRadius: 12,
                         offset: const Offset(0, 8),
                       ),
@@ -227,7 +227,7 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.black.withValues(alpha: 0.08),
+                            color: Colors.black.withOpacity(0.08),
                           ),
                         ),
                         child: Row(
@@ -310,7 +310,7 @@ class _ReservationFormScreenState extends State<ReservationFormScreen> {
                             color: AppColors.background,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.black.withValues(alpha: 0.05),
+                              color: Colors.black.withOpacity(0.05),
                             ),
                           ),
                           child: Row(

@@ -88,7 +88,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.25),
+                        color: AppColors.primary.withOpacity(0.25),
                         blurRadius: 22,
                         offset: const Offset(0, 16),
                       ),
@@ -106,7 +106,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                                 Text(
                                   'Réf. ${_reservation.id}',
                                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.76),
+                                    color: Colors.white.withOpacity(0.76),
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -127,7 +127,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.14),
+                              color: Colors.white.withOpacity(0.14),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -174,10 +174,10 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+                    border: Border.all(color: Colors.black.withOpacity(0.04)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
+                        color: Colors.black.withOpacity(0.04),
                         blurRadius: 10,
                         offset: const Offset(0, 6),
                       ),
@@ -221,10 +221,10 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+                    border: Border.all(color: Colors.black.withOpacity(0.04)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
+                        color: Colors.black.withOpacity(0.03),
                         blurRadius: 8,
                         offset: const Offset(0, 6),
                       ),
@@ -301,10 +301,10 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+                            border: Border.all(color: Colors.black.withOpacity(0.04)),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
+                                color: Colors.black.withOpacity(0.03),
                                 blurRadius: 8,
                                 offset: const Offset(0, 6),
                               ),
@@ -337,10 +337,10 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+                            border: Border.all(color: Colors.black.withOpacity(0.04)),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
+                                color: Colors.black.withOpacity(0.03),
                                 blurRadius: 8,
                                 offset: const Offset(0, 6),
                               ),
@@ -359,7 +359,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                                 height: 90,
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.05),
+                                  color: AppColors.primary.withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: DecoratedBox(
@@ -367,7 +367,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: AppColors.primary.withValues(alpha: 0.25),
+                                      color: AppColors.primary.withOpacity(0.25),
                                     ),
                                   ),
                                   child: GridView.builder(
@@ -403,10 +403,10 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+                      border: Border.all(color: Colors.black.withOpacity(0.04)),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
+                          color: Colors.black.withOpacity(0.03),
                           blurRadius: 8,
                           offset: const Offset(0, 6),
                         ),
@@ -425,9 +425,9 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.1),
+                      color: AppColors.error.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.18)),
+                      border: Border.all(color: AppColors.error.withOpacity(0.18)),
                     ),
                     child: Row(
                       children: [
@@ -480,7 +480,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.28),
+                          color: Colors.white.withOpacity(0.28),
                           width: 1.2,
                         ),
                         gradient: const LinearGradient(
@@ -495,7 +495,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.orange.withValues(alpha: 0.18),
+                            color: Colors.orange.withOpacity(0.18),
                             blurRadius: 24,
                             offset: const Offset(0, 12),
                           ),
@@ -510,7 +510,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                               child: BackdropFilter(
                                 filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                                 child: Container(
-                                  color: Colors.white.withValues(alpha: 0.08),
+                                  color: Colors.white.withOpacity(0.08),
                                 ),
                               ),
                             ),
@@ -540,15 +540,15 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                                   width: handleSize,
                                   height: handleSize,
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.9),
+                                    color: Colors.white.withOpacity(0.9),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.5),
+                                      color: Colors.white.withOpacity(0.5),
                                       width: 1,
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.12),
+                                        color: Colors.black.withOpacity(0.12),
                                         blurRadius: 10,
                                         offset: const Offset(0, 6),
                                       ),
@@ -578,7 +578,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
   Widget _detailRow(BuildContext context, IconData icon, String value) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.82)),
+        Icon(icon, size: 18, color: Colors.white.withOpacity(0.82)),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
