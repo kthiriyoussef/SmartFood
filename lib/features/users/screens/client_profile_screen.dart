@@ -559,7 +559,7 @@ class _PickupInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Card(
+    return const _Card(
       title: 'Comment ça marche',
       child: Column(
         children: [
@@ -568,20 +568,20 @@ class _PickupInfoCard extends StatelessWidget {
             label: 'Réservation',
             value: 'Aujourd’hui ou demain',
           ),
-          const Divider(height: 20),
+          Divider(height: 20),
           _InfoRow(
             icon: Icons.schedule_rounded,
             label: 'Retrait',
             value:
                 '${ReservationService.openingHour}h00 – ${ReservationService.closingHour}h00',
           ),
-          const Divider(height: 20),
+          Divider(height: 20),
           _InfoRow(
             icon: Icons.qr_code_2_rounded,
             label: 'Au comptoir',
             value: 'QR code ou code PIN',
           ),
-          const Divider(height: 20),
+          Divider(height: 20),
           _InfoRow(
             icon: Icons.payments_outlined,
             label: 'Paiement',

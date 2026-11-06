@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseSchema {
-  static const int version = 5;
+  static const int version = 10;
 
   static Future<void> create(Database database, int _) async {
     await database.execute('''
@@ -12,7 +12,7 @@ class DatabaseSchema {
         ville TEXT NOT NULL,
         telephone TEXT NOT NULL,
         statut TEXT NOT NULL DEFAULT 'actif'
-        CHECK (statut IN ('actif', 'archive')),
+          CHECK (statut IN ('actif', 'archive')),
         date_creation TEXT NOT NULL
       )
     ''');
@@ -25,7 +25,8 @@ class DatabaseSchema {
         description TEXT,
         prix REAL NOT NULL CHECK (prix > 0),
         categorie TEXT NOT NULL,
-        quantite INTEGER NOT NULL DEFAULT 0 CHECK (quantite >= 0),
+        quantite INTEGER NOT NULL DEFAULT 0
+          CHECK (quantite >= 0),
         disponible INTEGER NOT NULL DEFAULT 1
           CHECK (disponible IN (0, 1)),
         date_creation TEXT NOT NULL,
@@ -36,37 +37,101 @@ class DatabaseSchema {
     ''');
 
     await database.execute(
-      'CREATE INDEX idx_menus_restaurant_id ON menus(restaurant_id)',
+      'CREATE INDEX idx_menus_restaurant_id '
+      'ON menus(restaurant_id)',
     );
 
     await _createReservations(database);
     await _createClientProfile(database);
     await _createSettings(database);
+    await _createUsers(database);
+    await _createReclamations(database);
+    await _createReclamationMessages(database);
   }
 
   static Future<void> upgrade(
-      Database database, int oldVersion, int newVersion) async {
+    Database database,
+    int oldVersion,
+    int newVersion,
+  ) async {
     if (oldVersion < 2) {
       await database.execute(
-        'ALTER TABLE menus ADD COLUMN quantite INTEGER NOT NULL DEFAULT 0 '
+        'ALTER TABLE menus '
+        'ADD COLUMN quantite INTEGER NOT NULL DEFAULT 0 '
         'CHECK (quantite >= 0)',
       );
     }
+
     if (oldVersion < 3) {
       await _createReservations(database);
     }
+
     if (oldVersion < 4) {
       await _createClientProfile(database);
     }
+
     if (oldVersion < 5) {
       await _createSettings(database);
     }
+
+    if (oldVersion < 6) {
+      await _createUsers(database);
+    }
+
+    if (oldVersion < 7) {
+      await _createReclamations(database);
+    }
+
+    // Migration de la version 7 vers la version 8.
+    if (oldVersion == 7) {
+      await database.execute(
+        'ALTER TABLE reclamations '
+        'ADD COLUMN reservation_ref TEXT',
+      );
+
+      await database.execute(
+        'ALTER TABLE reclamations '
+        'ADD COLUMN justificatif_name TEXT',
+      );
+    }
+
+    // Migration vers la version 9 :
+    // ajout de la priorité et de l'impact.
+    if (oldVersion < 9) {
+      await database.execute('''
+        ALTER TABLE reclamations
+        ADD COLUMN priorite TEXT NOT NULL DEFAULT 'MOYENNE'
+        CHECK (priorite IN (
+          'FAIBLE',
+          'MOYENNE',
+          'ELEVEE',
+          'URGENTE'
+        ))
+      ''');
+
+      await database.execute('''
+        ALTER TABLE reclamations
+        ADD COLUMN impact TEXT NOT NULL DEFAULT 'NORMAL'
+        CHECK (impact IN ('NORMAL', 'FORT'))
+      ''');
+
+      await database.execute(
+        'CREATE INDEX idx_reclamations_priorite '
+        'ON reclamations(priorite)',
+      );
+    }
+    // Migration vers la version 10 : messagerie des réclamations.
+    if (oldVersion < 10) {
+      await _createReclamationMessages(database);
+    }
   }
 
-  /// Le nom du plat, du restaurant et le prix sont copiés dans la réservation :
-  /// si le menu est modifié ou supprimé, l'historique reste exact
-  /// (menu_id / restaurant_id passent alors à NULL).
-  static Future<void> _createReservations(DatabaseExecutor database) async {
+  /// Réservations des clients.
+  /// Les informations des plats et restaurants sont conservées
+  /// même si le menu original est modifié.
+  static Future<void> _createReservations(
+    DatabaseExecutor database,
+  ) async {
     await database.execute('''
       CREATE TABLE reservations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,33 +140,50 @@ class DatabaseSchema {
         restaurant_id INTEGER,
         restaurant_nom TEXT NOT NULL,
         menu_nom TEXT NOT NULL,
-        prix_unitaire REAL NOT NULL CHECK (prix_unitaire > 0),
-        quantite INTEGER NOT NULL CHECK (quantite > 0),
+        prix_unitaire REAL NOT NULL
+          CHECK (prix_unitaire > 0),
+        quantite INTEGER NOT NULL
+          CHECK (quantite > 0),
         client_prenom TEXT NOT NULL,
         client_nom TEXT NOT NULL,
         telephone TEXT NOT NULL,
         note TEXT,
         heure_retrait TEXT NOT NULL,
         statut TEXT NOT NULL DEFAULT 'EN_ATTENTE'
-          CHECK (statut IN ('EN_ATTENTE', 'CONFIRMEE', 'PREPARATION',
-                            'PRETE', 'RECUPEREE', 'ANNULEE')),
+          CHECK (statut IN (
+            'EN_ATTENTE',
+            'CONFIRMEE',
+            'PREPARATION',
+            'PRETE',
+            'RECUPEREE',
+            'ANNULEE'
+          )),
         code_pin TEXT NOT NULL,
         date_creation TEXT NOT NULL,
-        FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE SET NULL,
-        FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE SET NULL
+        FOREIGN KEY (menu_id)
+          REFERENCES menus(id)
+          ON DELETE SET NULL,
+        FOREIGN KEY (restaurant_id)
+          REFERENCES restaurants(id)
+          ON DELETE SET NULL
       )
     ''');
 
     await database.execute(
-      'CREATE INDEX idx_reservations_statut ON reservations(statut)',
+      'CREATE INDEX idx_reservations_statut '
+      'ON reservations(statut)',
     );
+
     await database.execute(
-      'CREATE INDEX idx_reservations_restaurant_id ON reservations(restaurant_id)',
+      'CREATE INDEX idx_reservations_restaurant_id '
+      'ON reservations(restaurant_id)',
     );
   }
 
-  /// Profil du client de l'appareil (une seule ligne, id = 1).
-  static Future<void> _createClientProfile(DatabaseExecutor database) async {
+  /// Profil local du client.
+  static Future<void> _createClientProfile(
+    DatabaseExecutor database,
+  ) async {
     await database.execute('''
       CREATE TABLE profil_client (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -113,14 +195,142 @@ class DatabaseSchema {
     ''');
   }
 
-  /// Réglages de l'application (clé / valeur), ex. le restaurant géré
-  /// par l'espace restaurant.
-  static Future<void> _createSettings(DatabaseExecutor database) async {
+  /// Paramètres de l'application.
+  static Future<void> _createSettings(
+    DatabaseExecutor database,
+  ) async {
     await database.execute('''
       CREATE TABLE app_settings (
         cle TEXT PRIMARY KEY,
         valeur TEXT NOT NULL
       )
     ''');
+  }
+
+  /// Comptes utilisateurs.
+  static Future<void> _createUsers(
+    DatabaseExecutor database,
+  ) async {
+    await database.execute('''
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom TEXT NOT NULL,
+        prenom TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL
+          CHECK (role IN (
+            'ADMIN',
+            'RESTO',
+            'CLIENT'
+          )),
+        restaurant_id INTEGER,
+        actif INTEGER NOT NULL DEFAULT 1
+          CHECK (actif IN (0, 1)),
+        FOREIGN KEY (restaurant_id)
+          REFERENCES restaurants(id)
+          ON DELETE SET NULL
+      )
+    ''');
+
+    await database.execute(
+      'CREATE INDEX idx_users_restaurant_id '
+      'ON users(restaurant_id)',
+    );
+  }
+
+  /// Réclamations clients avec priorité automatique.
+  static Future<void> _createReclamations(
+    DatabaseExecutor database,
+  ) async {
+    await database.execute('''
+      CREATE TABLE reclamations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        sujet TEXT NOT NULL,
+        description TEXT NOT NULL,
+        reservation_ref TEXT,
+
+        statut TEXT NOT NULL DEFAULT 'EN_ATTENTE'
+          CHECK (statut IN (
+            'EN_ATTENTE',
+            'EN_COURS',
+            'RESOLUE',
+            'REJETEE'
+          )),
+
+        priorite TEXT NOT NULL DEFAULT 'MOYENNE'
+          CHECK (priorite IN (
+            'FAIBLE',
+            'MOYENNE',
+            'ELEVEE',
+            'URGENTE'
+          )),
+
+        impact TEXT NOT NULL DEFAULT 'NORMAL'
+          CHECK (impact IN (
+            'NORMAL',
+            'FORT'
+          )),
+
+        justificatif_path TEXT,
+        justificatif_name TEXT,
+        date_creation TEXT NOT NULL,
+        date_modification TEXT,
+
+        FOREIGN KEY (user_id)
+          REFERENCES users(id)
+          ON DELETE RESTRICT
+      )
+    ''');
+
+    await database.execute(
+      'CREATE INDEX idx_reclamations_user_id '
+      'ON reclamations(user_id)',
+    );
+
+    await database.execute(
+      'CREATE INDEX idx_reclamations_statut '
+      'ON reclamations(statut)',
+    );
+
+    await database.execute(
+      'CREATE INDEX idx_reclamations_priorite '
+      'ON reclamations(priorite)',
+    );
+  }
+
+  static Future<void> _createReclamationMessages(
+    DatabaseExecutor database,
+  ) async {
+    await database.execute('''
+    CREATE TABLE reclamation_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reclamation_id INTEGER NOT NULL,
+      sender_id INTEGER NOT NULL,
+      message TEXT NOT NULL
+        CHECK (length(trim(message)) > 0),
+      date_envoi TEXT NOT NULL,
+      date_lecture TEXT,
+
+      FOREIGN KEY (reclamation_id)
+        REFERENCES reclamations(id)
+        ON DELETE CASCADE,
+
+      FOREIGN KEY (sender_id)
+        REFERENCES users(id)
+        ON DELETE RESTRICT
+    )
+  ''');
+
+    await database.execute('''
+    CREATE INDEX idx_reclamation_messages_ticket
+    ON reclamation_messages(reclamation_id, date_envoi, id)
+  ''');
+
+    await database.execute('''
+    CREATE INDEX idx_reclamation_messages_sender
+    ON reclamation_messages(sender_id)
+  ''');
   }
 }

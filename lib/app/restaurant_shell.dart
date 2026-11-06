@@ -1,3 +1,4 @@
+import 'package:smartfood/features/auth/screens/change_password_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:smartfood/app/role_scope.dart';
 import 'package:smartfood/app/role_shell.dart';
@@ -8,7 +9,7 @@ import 'package:smartfood/features/reservations/screens/restaurant_monitor_scree
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
 import 'package:smartfood/features/restaurants/screens/menu_list_screen.dart';
 import 'package:smartfood/features/restaurants/screens/restaurant_dashboard_screen.dart';
-import 'package:smartfood/features/restaurants/services/current_restaurant.dart';
+import 'package:smartfood/core/database/database_helper.dart';
 
 /// Espace restaurant (un seul restaurant : le « Restaurant Test »).
 /// Tableau de bord · Suivi · Plats · Historique · [Espace client].
@@ -23,6 +24,7 @@ class RestaurantShell extends StatefulWidget {
 class _RestaurantShellState extends State<RestaurantShell> {
   final _pendingCount = ValueNotifier<int>(0);
   int? _restaurantId;
+  bool _loaded = false;
 
   @override
   void initState() {
@@ -39,9 +41,14 @@ class _RestaurantShellState extends State<RestaurantShell> {
   }
 
   Future<void> _init() async {
-    final id = await CurrentRestaurant.id();
+    final userId = RoleScope.of(context).userId;
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.query('users',
+      columns: ['restaurant_id'], where: "id = ? AND role = 'RESTO' AND actif = 1",
+      whereArgs: [userId], limit: 1);
+    final id = rows.isEmpty ? null : rows.first['restaurant_id'] as int?;
     if (!mounted) return;
-    setState(() => _restaurantId = id);
+    setState(() { _restaurantId = id; _loaded = true; });
     _refreshBadge();
   }
 
@@ -50,7 +57,7 @@ class _RestaurantShellState extends State<RestaurantShell> {
     final id = _restaurantId;
     if (id == null) return;
     final reservations =
-        await ReservationService().getReservations(restaurantId: id);
+    await ReservationService().getReservations(restaurantId: id);
     if (!mounted) return;
     _pendingCount.value = reservations
         .where((r) => r.status == ReservationStatus.enAttente)
@@ -60,14 +67,25 @@ class _RestaurantShellState extends State<RestaurantShell> {
   @override
   Widget build(BuildContext context) {
     final id = _restaurantId;
-    if (id == null) {
+    if (!_loaded) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    if (id == null) {
+      return Scaffold(appBar: AppBar(title: const Text('SmartFood RESTO')),
+        body: const Center(child: Text(
+          'Aucun restaurant associé à ce compte. Contactez un administrateur.')));
+    }
     return RoleShell(
-      switchLabel: 'Espace client',
-      switchIcon: Icons.person_pin_circle_rounded,
-      onSwitchRole: () => RoleScope.of(context).switchTo(AppRole.client),
+      switchLabel: 'Déconnexion',
+      switchIcon: Icons.logout_rounded,
+      onSwitchRole: () => RoleScope.of(context).logout(),
       tabs: [
+        ShellTab(
+          icon: Icons.lock_outline,
+          selectedIcon: Icons.lock_rounded,
+          label: 'Sécurité',
+          root: ChangePasswordScreen(userId: RoleScope.of(context).userId),
+        ),
         ShellTab(
           icon: Icons.dashboard_outlined,
           selectedIcon: Icons.dashboard_rounded,

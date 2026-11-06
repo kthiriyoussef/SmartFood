@@ -1,13 +1,17 @@
-import 'package:flutter/material.dart';
-import 'package:smartfood/app/role_scope.dart';
-import 'package:smartfood/app/role_shell.dart';
-import 'package:smartfood/core/database/data_changes.dart';
-import 'package:smartfood/features/reservations/screens/reservation_history_client_screen.dart';
-import 'package:smartfood/features/reservations/services/reservation_service.dart';
-import 'package:smartfood/features/restaurants/screens/client_restaurant_catalog_screen.dart';
-import 'package:smartfood/features/users/screens/client_profile_screen.dart';
+import 'package:smartfood/features/auth/screens/change_password_screen.dart';
 
-/// Espace client : Accueil · Réservations · Profil · [Espace resto].
+import 'package:flutter/material.dart';
+
+import 'role_scope.dart';
+import 'role_shell.dart';
+
+import '../core/database/data_changes.dart';
+import '../features/reservations/screens/reservation_history_client_screen.dart';
+import '../features/reservations/services/reservation_service.dart';
+import '../features/restaurants/screens/client_restaurant_catalog_screen.dart';
+import '../features/users/screens/client_profile_screen.dart';
+import '../features/reclamation/screens/support_navigation_screen.dart';
+
 class ClientShell extends StatefulWidget {
   const ClientShell({super.key});
 
@@ -20,7 +24,6 @@ class ClientShell extends StatefulWidget {
 }
 
 class _ClientShellState extends State<ClientShell> {
-  /// Réservations en cours du client (pastille sur l'onglet).
   final _activeCount = ValueNotifier<int>(0);
 
   @override
@@ -38,18 +41,28 @@ class _ClientShellState extends State<ClientShell> {
   }
 
   Future<void> _refreshBadge() async {
-    final reservations = await ReservationService().getReservations();
+    final reservations =
+    await ReservationService().getReservations();
+
     if (!mounted) return;
-    _activeCount.value = reservations.where((r) => r.isActive).length;
+
+    _activeCount.value =
+        reservations.where((r) => r.isActive).length;
   }
 
   @override
   Widget build(BuildContext context) {
     return RoleShell(
-      switchLabel: 'Espace resto',
-      switchIcon: Icons.storefront_rounded,
-      onSwitchRole: () => RoleScope.of(context).switchTo(AppRole.restaurant),
+      switchLabel: 'Déconnexion',
+      switchIcon: Icons.logout_rounded,
+      onSwitchRole: () => RoleScope.of(context).logout(),
       tabs: [
+        ShellTab(
+          icon: Icons.lock_outline,
+          selectedIcon: Icons.lock_rounded,
+          label: 'Sécurité',
+          root: ChangePasswordScreen(userId: RoleScope.of(context).userId),
+        ),
         const ShellTab(
           icon: Icons.home_outlined,
           selectedIcon: Icons.home_rounded,
@@ -68,6 +81,12 @@ class _ClientShellState extends State<ClientShell> {
           selectedIcon: Icons.person_rounded,
           label: 'Profil',
           root: ClientProfileScreen(),
+        ),
+        const ShellTab(
+          icon: Icons.support_agent_outlined,
+          selectedIcon: Icons.support_agent_rounded,
+          label: 'Réclamations',
+          root: SupportNavigationScreen(),
         ),
       ],
     );

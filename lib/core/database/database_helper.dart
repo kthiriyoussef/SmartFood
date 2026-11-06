@@ -34,6 +34,7 @@ class DatabaseHelper {
       onOpen: (database) async {
         await DatabaseSeeder.seedIfEmpty(database);
         await DatabaseSeeder.ensureTestRestaurant(database);
+        await DatabaseSeeder.ensureTestAdmin(database);
       },
     );
   }

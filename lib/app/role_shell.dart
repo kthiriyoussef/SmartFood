@@ -128,7 +128,7 @@ class RoleShellState extends State<RoleShell> {
                 child: Icon(widget.switchIcon, color: AppColors.secondary),
               ),
               label: widget.switchLabel,
-              tooltip: 'Changer de rôle (test)',
+              tooltip: 'Se déconnecter',
             ),
           ],
         ),

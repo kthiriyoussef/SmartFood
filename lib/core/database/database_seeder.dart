@@ -1,9 +1,46 @@
+import 'package:bcrypt/bcrypt.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// Données de démonstration insérées quand la base ne contient aucun
 /// restaurant (premier lancement). Reprend les exemples des écrans clients.
+
+/// Crée le premier administrateur pour les tests locaux.
+/// Ne modifie pas les comptes existants.
+/// À retirer avant la mise en production.
 class DatabaseSeeder {
   DatabaseSeeder._();
+
+  /// Crée un administrateur de test si son email
+  /// n'existe pas encore dans SQLite.
+  static Future<void> ensureTestAdmin(Database database) async {
+    const email = 'admin@smartfood.tn';
+    const password = 'Admin@2026';
+
+    final existing = await database.query(
+      'users',
+      columns: ['id'],
+      where: 'email = ?',
+      whereArgs: [email],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      return;
+    }
+
+    await database.insert('users', {
+      'nom': 'SmartFood',
+      'prenom': 'Admin',
+      'email': email,
+      'password_hash': BCrypt.hashpw(
+        password,
+        BCrypt.gensalt(),
+      ),
+      'role': 'ADMIN',
+      'restaurant_id': null,
+      'actif': 1,
+    });
+  }
 
   static Future<void> seedIfEmpty(Database database) async {
     final count = Sqflite.firstIntValue(

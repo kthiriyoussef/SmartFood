@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:smartfood/app/client_shell.dart';
 import 'package:smartfood/app/restaurant_shell.dart';
 
-/// Rôle courant de l'application. Pas encore d'authentification : on bascule
-/// librement entre les deux espaces pour les tests (bouton dans la barre).
 enum AppRole { client, restaurant }
 
-/// Racine de l'application : affiche l'espace correspondant au rôle courant.
 class RoleScope extends StatefulWidget {
-  const RoleScope({super.key, this.initialRole = AppRole.client});
-
+  const RoleScope({super.key, required this.initialRole, required this.userId, required this.onLogout});
   final AppRole initialRole;
+  final int userId;
+  final VoidCallback onLogout;
 
   static RoleScopeState of(BuildContext context) =>
       context.findAncestorStateOfType<RoleScopeState>()!;
@@ -20,33 +18,11 @@ class RoleScope extends StatefulWidget {
 }
 
 class RoleScopeState extends State<RoleScope> {
-  late AppRole _role = widget.initialRole;
-
-  AppRole get role => _role;
-
-  void switchTo(AppRole role) {
-    if (role == _role) return;
-    setState(() => _role = role);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            role == AppRole.client ? 'Espace client' : 'Espace restaurant',
-          ),
-          duration: const Duration(milliseconds: 1200),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-  }
-
+  AppRole get role => widget.initialRole;
+  int get userId => widget.userId;
+  void logout() => widget.onLogout();
   @override
-  Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 280),
-      child: _role == AppRole.client
-          ? const ClientShell(key: ValueKey(AppRole.client))
-          : const RestaurantShell(key: ValueKey(AppRole.restaurant)),
-    );
-  }
+  Widget build(BuildContext context) => widget.initialRole == AppRole.client
+      ? const ClientShell()
+      : const RestaurantShell();
 }
