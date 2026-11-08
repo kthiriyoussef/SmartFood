@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:smartfood/features/reclamation/repositories/reclamation_repository.dart';
 import 'package:smartfood/features/reclamation/screens/reclamation_chat_screen.dart';
+import 'package:smartfood/features/reclamation/services/reclamation_ai_service.dart';
 
 class AdminReclamationsScreen extends StatefulWidget {
   const AdminReclamationsScreen({
@@ -22,6 +23,7 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
   List<Map<String, Object?>> _reclamations = [];
 
   bool _loading = true;
+  bool _analysing = false;
   String? _error;
 
   String _statusFilter = 'TOUTES';
@@ -243,9 +245,9 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
 
     items.sort((a, b) {
       final statusA = a['statut']?.toString() ?? 'EN_ATTENTE';
+
       final statusB = b['statut']?.toString() ?? 'EN_ATTENTE';
 
-      // Les reclamations ouvertes passent d'abord.
       final openA = _isOpen(statusA) ? 1 : 0;
       final openB = _isOpen(statusB) ? 1 : 0;
 
@@ -255,7 +257,6 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
         return openComparison;
       }
 
-      // Puis classement par priorite.
       final rankA = _priorityRank(_priorityOf(a));
       final rankB = _priorityRank(_priorityOf(b));
 
@@ -265,8 +266,8 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
         return priorityComparison;
       }
 
-      // Enfin, les tickets les plus recents.
       final dateA = a['date_creation']?.toString() ?? '';
+
       final dateB = b['date_creation']?.toString() ?? '';
 
       return dateB.compareTo(dateA);
@@ -365,85 +366,61 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-
                       const SizedBox(height: 14),
-
-                      // PRIORITE
                       const Text(
                         'Priorité automatique',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-
                       const SizedBox(height: 8),
-
                       _priorityBadge(priority),
-
                       const SizedBox(height: 12),
-
                       Text(
-                        'Impact : ${impact == 'FORT' ? 'Important' : 'Normal'}',
+                        'Impact : '
+                        '${impact == 'FORT' ? 'Important' : 'Normal'}',
                       ),
-
                       const SizedBox(height: 12),
-
                       _statusBadge(currentStatus),
-
                       const Divider(height: 28),
-
                       Text(
                         'Client ID : '
                         '${reclamation['user_id']}',
                       ),
-
                       const SizedBox(height: 8),
-
                       Text(
                         'Date : '
                         '${reclamation['date_creation'] ?? ''}',
                       ),
-
                       const Divider(height: 28),
-
                       const Text(
                         'Description',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-
                       const SizedBox(height: 8),
-
                       Text(
                         reclamation['description']?.toString() ?? '',
                       ),
-
                       const SizedBox(height: 12),
-
                       Text(
                         'Réservation : '
                         '${reclamation['reservation_ref'] ?? 'Non renseignée'}',
                       ),
-
                       const SizedBox(height: 12),
-
                       Text(
                         'Justificatif : '
                         '${reclamation['justificatif_name'] ?? 'Aucun'}',
                       ),
-
                       const Divider(height: 28),
-
                       const Text(
                         'Modifier le statut',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-
                       const SizedBox(height: 8),
-
                       DropdownButtonFormField<String>(
                         key: ValueKey(selectedStatus),
                         initialValue: selectedStatus,
@@ -451,12 +428,14 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                         ),
-                        items: _statuses.entries.map((entry) {
-                          return DropdownMenuItem<String>(
-                            value: entry.key,
-                            child: Text(entry.value),
-                          );
-                        }).toList(),
+                        items: _statuses.entries.map(
+                          (entry) {
+                            return DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            );
+                          },
+                        ).toList(),
                         onChanged: (value) {
                           if (value != null) {
                             setDialogState(() {
@@ -465,14 +444,17 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                           }
                         },
                       ),
-
                       if (priority == 'URGENTE' && _isOpen(currentStatus)) ...[
                         const SizedBox(height: 14),
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.red.withValues(
+                              alpha: 0.08,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              12,
+                            ),
                           ),
                           child: const Row(
                             children: [
@@ -604,6 +586,191 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
   }
 
   // ==========================================
+  // ANALYSE IA GEMINI
+  // ==========================================
+
+  Future<void> _analyserAvecIA(
+    Map<String, Object?> reclamation,
+  ) async {
+    if (_analysing) return;
+
+    setState(() {
+      _analysing = true;
+    });
+
+    final service = ReclamationAiService();
+
+    try {
+      final resultat = await service.analyser(
+        description: reclamation['description']?.toString() ?? '',
+        motif: reclamation['sujet']?.toString() ?? '',
+      );
+
+      if (!mounted) return;
+
+      final controller = TextEditingController(
+        text: resultat.reponseSuggeree,
+      );
+
+      try {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    color: Colors.green,
+                  ),
+                  SizedBox(width: 8),
+                  Text('Analyse Gemini'),
+                ],
+              ),
+              content: SizedBox(
+                width: 450,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Catégorie détectée',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(resultat.categorie),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Sentiment du client',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(resultat.sentiment),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Priorité suggérée par IA',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        resultat.prioriteSuggeree,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Priorité automatique actuelle',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      _priorityBadge(
+                        _priorityOf(reclamation),
+                      ),
+                      const Divider(height: 24),
+                      const Text(
+                        'Résumé de la réclamation',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(resultat.resume),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Réponse suggérée par Gemini',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: controller,
+                        maxLines: 6,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: 'Réponse proposée au client',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Cette réponse est une suggestion. '
+                        'Elle doit être vérifiée par '
+                        'l’administrateur avant tout envoi.',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Fermer'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final ticketId = reclamation['id'] as int;
+
+                    // Fermer la fenêtre Gemini.
+                    Navigator.of(dialogContext).pop();
+
+                    // Ouvrir la discussion avec la réponse IA.
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ReclamationChatScreen(
+                          reclamationId: ticketId,
+                          motif: reclamation['sujet']?.toString() ?? '',
+                          description:
+                              reclamation['description']?.toString() ?? '',
+                          initialMessage: resultat.reponseSuggeree,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.chat),
+                  label: const Text('Utiliser dans le chat'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      } finally {
+        controller.dispose();
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Erreur analyse IA : $e',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _analysing = false;
+        });
+      }
+    }
+  }
+
+  // ==========================================
   // CARTE RECLAMATION
   // ==========================================
 
@@ -652,9 +819,13 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                   _priorityBadge(priority),
                 ],
               ),
+
               const SizedBox(height: 12),
+
               _statusBadge(status),
+
               const SizedBox(height: 12),
+
               Text(
                 reclamation['sujet']?.toString() ?? 'Sans sujet',
                 style: const TextStyle(
@@ -662,13 +833,17 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 8),
+
               Text(
                 reclamation['description']?.toString() ?? '',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+
               const SizedBox(height: 12),
+
               Row(
                 children: [
                   Icon(
@@ -682,12 +857,16 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 10),
+
               Text(
                 'Client ID : '
                 '${reclamation['user_id']}',
               ),
+
               const SizedBox(height: 6),
+
               Text(
                 'Date : '
                 '${reclamation['date_creation'] ?? ''}',
@@ -699,7 +878,10 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
 
               const SizedBox(height: 12),
 
-// BOUTON DISCUSSION ADMIN / CLIENT
+              // ==================================
+              // BOUTON DISCUSSION ADMIN / CLIENT
+              // ==================================
+
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -710,15 +892,67 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                       MaterialPageRoute(
                         builder: (_) => ReclamationChatScreen(
                           reclamationId: ticketId,
+                          motif: reclamation['sujet']?.toString() ?? '',
+                          description:
+                              reclamation['description']?.toString() ?? '',
                         ),
                       ),
                     );
                   },
-                  icon: const Icon(Icons.forum_outlined),
-                  label: const Text('Discuter avec le client'),
+                  icon: const Icon(
+                    Icons.forum_outlined,
+                  ),
+                  label: const Text(
+                    'Discuter avec le client',
+                  ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // ==================================
+              // BOUTON ANALYSE IA GEMINI
+              // ==================================
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _analysing
+                      ? null
+                      : () => _analyserAvecIA(
+                            reclamation,
+                          ),
+                  icon: _analysing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.auto_awesome,
+                        ),
+                  label: Text(
+                    _analysing
+                        ? 'Analyse en cours...'
+                        : 'Analyser avec IA Gemini',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.green.shade300,
+                    disabledForegroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ),
@@ -735,7 +969,6 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                   ),
                 ),
               ),
-
             ],
           ),
         ),
@@ -762,13 +995,16 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
           IconButton(
             tooltip: 'Actualiser',
             onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(
+              Icons.refresh,
+            ),
           ),
         ],
       ),
       body: Column(
         children: [
           // STATISTIQUES
+
           Padding(
             padding: const EdgeInsets.fromLTRB(
               12,
@@ -807,6 +1043,7 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
           ),
 
           // FILTRES PAR STATUT
+
           const Padding(
             padding: EdgeInsets.fromLTRB(
               16,
@@ -863,6 +1100,7 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
           ),
 
           // FILTRES PAR PRIORITE
+
           const Padding(
             padding: EdgeInsets.fromLTRB(
               16,
@@ -951,7 +1189,8 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
             ),
           ),
 
-          // LISTE
+          // LISTE DES RECLAMATIONS
+
           Expanded(
             child: _loading
                 ? const Center(
@@ -960,7 +1199,9 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                 : _error != null
                     ? Center(
                         child: Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(
+                            20,
+                          ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -968,7 +1209,9 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                                 'Erreur : $_error',
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(
+                                height: 12,
+                              ),
                               ElevatedButton(
                                 onPressed: _load,
                                 child: const Text(
@@ -984,7 +1227,9 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                         child: items.isEmpty
                             ? ListView(
                                 children: const [
-                                  SizedBox(height: 100),
+                                  SizedBox(
+                                    height: 100,
+                                  ),
                                   Center(
                                     child: Text(
                                       'Aucune réclamation trouvée.',
@@ -993,7 +1238,9 @@ class _AdminReclamationsScreenState extends State<AdminReclamationsScreen> {
                                 ],
                               )
                             : ListView.builder(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(
+                                  16,
+                                ),
                                 itemCount: items.length,
                                 itemBuilder: (context, index) {
                                   return _reclamationCard(
