@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/auth/services/session_service.dart';
 import 'package:smartfood/features/reclamation/repositories/reclamation_repository.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:smartfood/features/reclamation/services/reclamation_ocr_service.dart';
 
 class ReclamationFormScreen extends StatefulWidget {
   const ReclamationFormScreen({super.key});
@@ -17,6 +19,14 @@ class ReclamationFormScreen extends StatefulWidget {
 class _ReclamationFormScreenState extends State<ReclamationFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _repository = ReclamationRepository();
+  final _ocrService = ReclamationOcrService();
+  final _imagePicker = ImagePicker();
+
+  bool _scanning = false;
+  String? _ocrTexte;
+  String? _ocrDate;
+  String? _ocrMontant;
+  String? _ocrReference;
 
   final _reservationController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -146,6 +156,143 @@ class _ReclamationFormScreenState extends State<ReclamationFormScreen> {
   // ======================================
   // GESTION DES FICHIERS JUSTIFICATIFS
   // ======================================
+
+  Future<void> _scannerTicket(ImageSource source) async {
+    if (_scanning || _saving) return;
+
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1800,
+      );
+
+      if (image == null) return;
+
+      if (!mounted) return;
+
+      setState(() {
+        _scanning = true;
+      });
+
+      final resultat = await _ocrService.scanner(image.path);
+
+      if (!mounted) return;
+
+      setState(() {
+        _ocrTexte = resultat.texteComplet;
+        _ocrReference = resultat.reference;
+        _ocrDate = resultat.date;
+        _ocrMontant = resultat.montant;
+      });
+
+      await _afficherResultatOCR(resultat);
+    } catch (e) {
+      if (!mounted) return;
+      _message('Erreur du scanner OCR : $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _scanning = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _afficherResultatOCR(
+    ReclamationOcrResult resultat,
+  ) async {
+    final referenceController = TextEditingController(
+      text: resultat.reference ?? '',
+    );
+
+    try {
+      final confirmer = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.document_scanner, color: Colors.green),
+                SizedBox(width: 8),
+                Expanded(child: Text('Résultat du scan OCR')),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Référence détectée',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: referenceController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Corriger ou saisir la référence',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Date : ${resultat.date ?? "Non détectée"}',
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Montant : ${resultat.montant ?? "Non détecté"}',
+                  ),
+                  const Divider(height: 28),
+                  const Text(
+                    'Texte reconnu',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  SelectableText(
+                    resultat.texteComplet,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Vérifiez les informations avant de les utiliser.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                icon: const Icon(Icons.check),
+                label: const Text('Utiliser'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (!mounted || confirmer != true) return;
+
+      final reference = referenceController.text.trim();
+
+      setState(() {
+        _ocrReference = reference.isEmpty ? null : reference;
+
+        if (reference.isNotEmpty) {
+          _reservationController.text = reference;
+        }
+      });
+
+      _message('Informations OCR vérifiées et récupérées.');
+    } finally {
+      referenceController.dispose();
+    }
+  }
 
   Future<void> _pickJustificatif() async {
     try {
@@ -479,6 +626,95 @@ class _ReclamationFormScreenState extends State<ReclamationFormScreen> {
               // ==========================
               // REFERENCE RESERVATION
               // ==========================
+
+              Card(
+                color: Colors.green.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.document_scanner_outlined,
+                            color: Colors.green,
+                            size: 28,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Scanner intelligent OCR',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Scannez votre ticket pour récupérer '
+                        'automatiquement ses informations.',
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _scanning || _saving
+                                  ? null
+                                  : () => _scannerTicket(
+                                        ImageSource.camera,
+                                      ),
+                              icon: const Icon(Icons.camera_alt),
+                              label: const Text('Caméra'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _scanning || _saving
+                                  ? null
+                                  : () => _scannerTicket(
+                                        ImageSource.gallery,
+                                      ),
+                              icon: const Icon(Icons.photo_library),
+                              label: const Text('Galerie'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_scanning) ...[
+                        const SizedBox(height: 14),
+                        const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                        const SizedBox(height: 8),
+                        const Center(
+                          child: Text('Analyse du ticket en cours...'),
+                        ),
+                      ],
+                      if (_ocrTexte != null && !_scanning) ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Dernier ticket analysé',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Référence : ${_ocrReference ?? "Non détectée"}',
+                        ),
+                        Text('Date : ${_ocrDate ?? "Non détectée"}'),
+                        Text('Montant : ${_ocrMontant ?? "Non détecté"}'),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
 
               TextFormField(
                 controller: _reservationController,
