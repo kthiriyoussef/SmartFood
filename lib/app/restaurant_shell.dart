@@ -10,9 +10,10 @@ import 'package:smartfood/features/reservations/services/reservation_service.dar
 import 'package:smartfood/core/database/database_helper.dart';
 import 'package:smartfood/features/restaurants/screens/restaurant/menu_list_screen.dart';
 import 'package:smartfood/features/restaurants/screens/restaurant/restaurant_dashboard_screen.dart';
+import 'package:smartfood/features/recruitment/screens/job_offer_list_restaurant.dart';
 
 /// Espace restaurant (un seul restaurant : le « Restaurant Test »).
-/// Tableau de bord · Suivi · Plats · Historique · [Espace client].
+/// Tableau de bord · Suivi · Plats · Historique · Recrutement.
 /// L'ordre des onglets correspond à [RestaurantTabs].
 class RestaurantShell extends StatefulWidget {
   const RestaurantShell({super.key});
@@ -44,8 +45,8 @@ class _RestaurantShellState extends State<RestaurantShell> {
     final userId = RoleScope.of(context).userId;
     final db = await DatabaseHelper.instance.database;
     final rows = await db.query('users',
-      columns: ['restaurant_id'], where: "id = ? AND role = 'RESTO' AND actif = 1",
-      whereArgs: [userId], limit: 1);
+        columns: ['restaurant_id'], where: "id = ? AND role = 'RESTO' AND actif = 1",
+        whereArgs: [userId], limit: 1);
     final id = rows.isEmpty ? null : rows.first['restaurant_id'] as int?;
     if (!mounted) return;
     setState(() { _restaurantId = id; _loaded = true; });
@@ -72,8 +73,8 @@ class _RestaurantShellState extends State<RestaurantShell> {
     }
     if (id == null) {
       return Scaffold(appBar: AppBar(title: const Text('SmartFood RESTO')),
-        body: const Center(child: Text(
-          'Aucun restaurant associé à ce compte. Contactez un administrateur.')));
+          body: const Center(child: Text(
+              'Aucun restaurant associé à ce compte. Contactez un administrateur.')));
     }
     return RoleShell(
       switchLabel: 'Déconnexion',
@@ -110,6 +111,12 @@ class _RestaurantShellState extends State<RestaurantShell> {
           selectedIcon: Icons.history_rounded,
           label: 'Historique',
           root: ReservationListScreen(restaurantId: id),
+        ),
+        const ShellTab(
+          icon: Icons.work_outline_rounded,
+          selectedIcon: Icons.work_rounded,
+          label: 'Recrutement',
+          root: JobOfferListScreen(),
         ),
       ],
     );

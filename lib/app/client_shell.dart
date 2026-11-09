@@ -9,6 +9,7 @@ import 'package:smartfood/features/restaurants/screens/client/client_restaurant_
 import 'package:smartfood/features/restaurants/screens/restaurant_access_status_screen.dart';
 import 'package:smartfood/features/users/screens/client/client_profile_screen.dart';
 import 'package:smartfood/features/reclamation/screens/support_navigation_screen.dart';
+import 'package:smartfood/features/recruitment/screens/job_offer_list_client.dart';
 
 class ClientShell extends StatefulWidget {
   const ClientShell({super.key});
@@ -87,6 +88,12 @@ class _ClientShellState extends State<ClientShell> {
           root: RestaurantAccessStatusScreen(
             userId: RoleScope.of(context).userId,
           ),
+        ),
+        const ShellTab(
+          icon: Icons.work_outline_rounded,
+          selectedIcon: Icons.work_rounded,
+          label: 'Emplois',
+          root: JobOfferListClientScreen(),
         ),
         const ShellTab(
           icon: Icons.support_agent_outlined,
