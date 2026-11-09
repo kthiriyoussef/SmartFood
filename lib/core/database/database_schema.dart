@@ -84,39 +84,47 @@ class DatabaseSchema {
 
     // Migration de la version 7 vers la version 8.
     if (oldVersion == 7) {
-      await database.execute(
-        'ALTER TABLE reclamations '
-        'ADD COLUMN reservation_ref TEXT',
+      await _addColumnIfMissing(
+        database,
+        'reclamations',
+        'reservation_ref',
+        'TEXT',
       );
 
-      await database.execute(
-        'ALTER TABLE reclamations '
-        'ADD COLUMN justificatif_name TEXT',
+      await _addColumnIfMissing(
+        database,
+        'reclamations',
+        'justificatif_name',
+        'TEXT',
       );
     }
 
     // Migration vers la version 9 :
     // ajout de la priorité et de l'impact.
     if (oldVersion < 9) {
-      await database.execute('''
-        ALTER TABLE reclamations
-        ADD COLUMN priorite TEXT NOT NULL DEFAULT 'MOYENNE'
-        CHECK (priorite IN (
-          'FAIBLE',
-          'MOYENNE',
-          'ELEVEE',
-          'URGENTE'
-        ))
-      ''');
+      await _addColumnIfMissing(
+        database,
+        'reclamations',
+        'priorite',
+        '''TEXT NOT NULL DEFAULT 'MOYENNE'
+          CHECK (priorite IN (
+            'FAIBLE',
+            'MOYENNE',
+            'ELEVEE',
+            'URGENTE'
+          ))''',
+      );
 
-      await database.execute('''
-        ALTER TABLE reclamations
-        ADD COLUMN impact TEXT NOT NULL DEFAULT 'NORMAL'
-        CHECK (impact IN ('NORMAL', 'FORT'))
-      ''');
+      await _addColumnIfMissing(
+        database,
+        'reclamations',
+        'impact',
+        '''TEXT NOT NULL DEFAULT 'NORMAL'
+          CHECK (impact IN ('NORMAL', 'FORT'))''',
+      );
 
       await database.execute(
-        'CREATE INDEX idx_reclamations_priorite '
+        'CREATE INDEX IF NOT EXISTS idx_reclamations_priorite '
         'ON reclamations(priorite)',
       );
     }
@@ -124,6 +132,20 @@ class DatabaseSchema {
     if (oldVersion < 10) {
       await _createReclamationMessages(database);
     }
+  }
+
+  static Future<void> _addColumnIfMissing(
+    DatabaseExecutor database,
+    String table,
+    String column,
+    String definition,
+  ) async {
+    final columns = await database.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((row) => row['name'] == column)) return;
+
+    await database.execute(
+      'ALTER TABLE $table ADD COLUMN $column $definition',
+    );
   }
 
   /// Réservations des clients.
