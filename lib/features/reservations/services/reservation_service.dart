@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:smartfood/core/database/data_changes.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
 import 'package:smartfood/features/reservations/repositories/reservation_repository.dart';
+import 'package:smartfood/features/reservations/services/note_analysis_service.dart';
 import 'package:smartfood/features/restaurants/models/menu.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
 
@@ -13,10 +15,17 @@ export 'package:smartfood/features/reservations/repositories/reservation_reposit
 /// Règles métier des réservations. Les écrans passent toujours par ici,
 /// jamais directement par le repository.
 class ReservationService {
-  ReservationService({ReservationRepository? repository})
-      : _repository = repository ?? ReservationRepository();
+  ReservationService({
+    ReservationRepository? repository,
+    NoteAnalysisService? noteAnalysis,
+  })  : _repository = repository ?? ReservationRepository(),
+        _noteAnalysis = noteAnalysis ?? NoteAnalysisService();
 
   final ReservationRepository _repository;
+  final NoteAnalysisService _noteAnalysis;
+
+  /// Notes en cours d'analyse (évite d'appeler Gemini deux fois).
+  static final Set<int> _analysing = {};
 
   /// Incrémenté à chaque création / annulation / changement de statut.
   /// Les écrans (onglet « Mes réservations », badge) l'écoutent pour se
@@ -174,7 +183,38 @@ class ReservationService {
     // Le stock est revérifié et décrémenté dans la transaction.
     final created = await _repository.createWithStock(reservation);
     _notifyChange();
+    // Analyse IA en arrière-plan : le client n'attend pas Gemini.
+    if (created.note != null) unawaited(analyzeNote(created));
     return created;
+  }
+
+  // ------------------------------------------------- Analyse IA de la note
+
+  /// Analyse la note (Gemini, ou mots-clés en secours) et l'enregistre.
+  /// Les écrans abonnés se rafraîchissent et affichent les badges.
+  Future<NoteAnalysis?> analyzeNote(Reservation reservation) async {
+    final id = reservation.id;
+    final note = reservation.note;
+    if (id == null || note == null || !_analysing.add(id)) return null;
+    try {
+      final analysis = await _noteAnalysis.analyze(note);
+      await _repository.saveNoteAnalysis(id, analysis);
+      _notifyChange();
+      return analysis;
+    } catch (error) {
+      debugPrint('Analyse de la note impossible ($id) : $error');
+      return null;
+    } finally {
+      _analysing.remove(id);
+    }
+  }
+
+  /// Rattrape les réservations actives dont la note n'a pas encore été
+  /// analysée (créées avant la fonctionnalité, ou analyse interrompue).
+  void analyzeMissingNotes(Iterable<Reservation> reservations) {
+    for (final r in reservations) {
+      if (r.isActive && r.awaitsNoteAnalysis) unawaited(analyzeNote(r));
+    }
   }
 
   Future<List<Reservation>> getReservations({int? restaurantId}) =>

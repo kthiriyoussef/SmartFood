@@ -1,3 +1,7 @@
+import 'package:smartfood/features/reservations/models/note_analysis.dart';
+
+export 'package:smartfood/features/reservations/models/note_analysis.dart';
+
 /// Statuts possibles d'une réservation, dans l'ordre du cycle de vie.
 ///
 /// EN_ATTENTE → CONFIRMEE → PREPARATION → PRETE → RECUPEREE
@@ -56,6 +60,7 @@ class Reservation {
     this.status = ReservationStatus.enAttente,
     required this.pinCode,
     required this.createdAt,
+    this.noteAnalysis,
   });
 
   final int? id;
@@ -83,6 +88,14 @@ class Reservation {
   final String status;
   final String pinCode;
   final DateTime createdAt;
+
+  /// Analyse IA de la note (null tant qu'elle n'est pas faite ou sans note).
+  final NoteAnalysis? noteAnalysis;
+
+  /// Une note existe mais n'a pas encore été analysée.
+  bool get awaitsNoteAnalysis => note != null && noteAnalysis == null;
+
+  bool get hasAllergy => noteAnalysis?.hasAllergy ?? false;
 
   double get total => unitPrice * quantity;
 
@@ -133,6 +146,7 @@ class Reservation {
         'statut': status,
         'code_pin': pinCode,
         'date_creation': createdAt.toIso8601String(),
+        'analyse_note': noteAnalysis?.encode(),
       };
 
   factory Reservation.fromMap(Map<String, Object?> map) {
@@ -153,10 +167,11 @@ class Reservation {
       status: map['statut'] as String,
       pinCode: map['code_pin'] as String,
       createdAt: DateTime.parse(map['date_creation'] as String),
+      noteAnalysis: NoteAnalysis.decode(map['analyse_note'] as String?),
     );
   }
 
-  Reservation copyWith({int? id, String? status}) {
+  Reservation copyWith({int? id, String? status, NoteAnalysis? noteAnalysis}) {
     return Reservation(
       id: id ?? this.id,
       reference: reference,
@@ -174,6 +189,7 @@ class Reservation {
       status: status ?? this.status,
       pinCode: pinCode,
       createdAt: createdAt,
+      noteAnalysis: noteAnalysis ?? this.noteAnalysis,
     );
   }
 }

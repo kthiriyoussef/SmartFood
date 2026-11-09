@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/core/database/data_changes.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
-import 'package:smartfood/features/reservations/screens/restaurant_reservation_detail_screen.dart';
+import 'package:smartfood/features/reservations/screens/restaurant/restaurant_reservation_detail_screen.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
 import 'package:smartfood/features/reservations/widgets/reservation_card.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';

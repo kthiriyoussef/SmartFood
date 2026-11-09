@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smartfood/app/theme.dart';
-import 'package:smartfood/features/reservations/screens/reservation_form_client.dart';
+import 'package:smartfood/features/reservations/screens/client/reservation_form_client.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
 import 'package:smartfood/features/restaurants/models/menu.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';

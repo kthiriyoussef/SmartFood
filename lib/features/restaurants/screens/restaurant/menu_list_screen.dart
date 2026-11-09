@@ -3,7 +3,7 @@ import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/core/database/data_changes.dart';
 import 'package:smartfood/features/restaurants/models/menu.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
-import 'package:smartfood/features/restaurants/screens/menu_form_screen.dart';
+import 'package:smartfood/features/restaurants/screens/restaurant/menu_form_screen.dart';
 import 'package:smartfood/features/restaurants/services/menu_service.dart';
 import 'package:smartfood/features/restaurants/services/restaurant_service.dart';
 

@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseSchema {
-  static const int version = 12;
+  static const int version = 13;
 
   static Future<void> create(Database database, int _) async {
     await database.execute('''
@@ -75,7 +75,6 @@ class DatabaseSchema {
     if (oldVersion < 5) {
       await _createSettings(database);
     }
-
     if (oldVersion < 6) {
       await _createUsers(database);
     }
@@ -141,6 +140,14 @@ class DatabaseSchema {
     if (oldVersion < 12) {
       await _createRestaurantAccessRequests(database);
     }
+    if (oldVersion < 13) {
+      await _addColumnIfMissing(
+        database,
+        'reservations',
+        'analyse_note',
+        'TEXT',
+      );
+    }
   }
 
   static Future<void> _addColumnIfMissing(
@@ -149,6 +156,12 @@ class DatabaseSchema {
     String column,
     String definition,
   ) async {
+    final tables = await database.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [table],
+    );
+    if (tables.isEmpty) return;
+
     final columns = await database.rawQuery('PRAGMA table_info($table)');
     if (columns.any((row) => row['name'] == column)) return;
 
@@ -191,6 +204,7 @@ class DatabaseSchema {
           )),
         code_pin TEXT NOT NULL,
         date_creation TEXT NOT NULL,
+        analyse_note TEXT,
         FOREIGN KEY (menu_id)
           REFERENCES menus(id)
           ON DELETE SET NULL,

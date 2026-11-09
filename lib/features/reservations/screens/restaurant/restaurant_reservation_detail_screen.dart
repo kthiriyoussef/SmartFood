@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:smartfood/app/theme.dart';
+import 'package:smartfood/core/database/data_changes.dart';
 import 'package:smartfood/core/utils/phone_call.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
+import 'package:smartfood/features/reservations/widgets/note_analysis_badges.dart';
 
 class RestaurantReservationDetailScreen extends StatefulWidget {
   const RestaurantReservationDetailScreen({
@@ -33,10 +35,22 @@ class _RestaurantReservationDetailScreenState
   void initState() {
     super.initState();
     _reservation = widget.reservation;
+    DataChanges.reservations.addListener(_reload);
+    // Note jamais analysée : on lance l'analyse maintenant.
+    if (_reservation.awaitsNoteAnalysis) _service.analyzeNote(_reservation);
+  }
+
+  /// Relit la réservation (ex. l'analyse IA de la note vient d'arriver).
+  Future<void> _reload() async {
+    final id = _reservation.id;
+    if (id == null) return;
+    final fresh = await _service.getReservation(id);
+    if (mounted && fresh != null) setState(() => _reservation = fresh);
   }
 
   @override
   void dispose() {
+    DataChanges.reservations.removeListener(_reload);
     _pinController.dispose();
     super.dispose();
   }
@@ -199,9 +213,6 @@ class _RestaurantReservationDetailScreenState
     final restaurantName = _reservation.restaurantName;
     final dishNames =
         '${_reservation.dishNames} · ${_reservation.total.toStringAsFixed(2)} DT';
-    final importantNote = _reservation.note == null
-        ? 'Aucune note du client.'
-        : 'Note du client : « ${_reservation.note} »';
 
     final statusSteps = [
       for (final step in _statusFlow)
@@ -352,53 +363,7 @@ class _RestaurantReservationDetailScreenState
                   ),
                 ),
                 const SizedBox(height: 18),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border:
-                        Border.all(color: Colors.black.withValues(alpha: 0.04)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.info_outline_rounded,
-                              color: AppColors.warning, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Note importante',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.text,
-                                ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        importantNote,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.text,
-                              height: 1.5,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
+                KitchenInstructionsCard(reservation: _reservation),
                 const SizedBox(height: 18),
                 Container(
                   width: double.infinity,

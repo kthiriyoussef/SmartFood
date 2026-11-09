@@ -7,7 +7,7 @@ import 'package:smartfood/features/reservations/models/reservation.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
 import 'package:smartfood/features/restaurants/models/menu.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
-import 'package:smartfood/features/restaurants/screens/restaurant_form_screen.dart';
+import 'package:smartfood/features/restaurants/screens/restaurant/restaurant_form_screen.dart';
 import 'package:smartfood/features/restaurants/services/menu_service.dart';
 import 'package:smartfood/features/restaurants/services/restaurant_service.dart';
 import 'package:smartfood/features/restaurants/widgets/restaurant_status_badge.dart';

@@ -4,12 +4,12 @@ import 'package:smartfood/app/role_scope.dart';
 import 'package:smartfood/app/role_shell.dart';
 import 'package:smartfood/core/database/data_changes.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
-import 'package:smartfood/features/reservations/screens/reservation_list_restaurant.dart';
-import 'package:smartfood/features/reservations/screens/restaurant_monitor_screen.dart';
+import 'package:smartfood/features/reservations/screens/restaurant/reservation_list_restaurant.dart';
+import 'package:smartfood/features/reservations/screens/restaurant/restaurant_monitor_screen.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
-import 'package:smartfood/features/restaurants/screens/menu_list_screen.dart';
-import 'package:smartfood/features/restaurants/screens/restaurant_dashboard_screen.dart';
 import 'package:smartfood/core/database/database_helper.dart';
+import 'package:smartfood/features/restaurants/screens/restaurant/menu_list_screen.dart';
+import 'package:smartfood/features/restaurants/screens/restaurant/restaurant_dashboard_screen.dart';
 
 /// Espace restaurant (un seul restaurant : le « Restaurant Test »).
 /// Tableau de bord · Suivi · Plats · Historique · [Espace client].

@@ -5,7 +5,7 @@ import 'package:smartfood/features/auth/screens/login_screen.dart';
 import 'package:smartfood/features/auth/services/auth_service.dart';
 import 'package:smartfood/features/admin/screens/admin_shell.dart';
 import 'package:smartfood/features/auth/services/session_service.dart';
-import 'package:smartfood/features/restaurants/screens/restaurant_form_screen.dart';
+import 'package:smartfood/features/restaurants/screens/restaurant/restaurant_form_screen.dart';
 import 'package:smartfood/features/restaurants/services/restaurant_service.dart';
 
 void main() {

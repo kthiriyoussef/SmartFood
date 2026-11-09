@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
-import 'package:smartfood/features/restaurants/screens/client_restaurant_menu_screen.dart';
+import 'package:smartfood/features/restaurants/screens/client/client_restaurant_menu_screen.dart';
 import 'package:smartfood/features/restaurants/services/restaurant_service.dart';
 
 class ClientRestaurantCatalogScreen extends StatefulWidget {

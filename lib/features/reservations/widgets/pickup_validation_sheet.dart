@@ -4,6 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
+import 'package:smartfood/features/reservations/widgets/note_analysis_badges.dart';
 
 /// « Retrait client » : le restaurant scanne le QR ou tape le PIN,
 /// l'application retrouve la réservation et valide la récupération.
@@ -267,7 +268,11 @@ class _ReservationSummary extends StatelessWidget {
           const SizedBox(height: 4),
           Text('${reservation.dishNames} · ${reservation.reference}'),
           Text('Retrait prévu : ${reservation.pickupTime}'),
-          if (reservation.note != null) Text('Note : ${reservation.note}'),
+          if (reservation.note != null) ...[
+            Text('Note : ${reservation.note}'),
+            const SizedBox(height: 6),
+            NoteAnalysisBadges(reservation: reservation),
+          ],
           const SizedBox(height: 8),
           Text(
             'À encaisser : ${reservation.total.toStringAsFixed(2)} DT',

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
-import 'package:smartfood/features/reservations/screens/menu_detail_client_screen.dart';
-import 'package:smartfood/features/reservations/screens/reservation_details_client.dart';
+import 'package:smartfood/features/reservations/screens/client/menu_detail_client_screen.dart';
+import 'package:smartfood/features/reservations/screens/client/reservation_details_client.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
 
 /// Affichée juste après la création : le client y retrouve sa référence,

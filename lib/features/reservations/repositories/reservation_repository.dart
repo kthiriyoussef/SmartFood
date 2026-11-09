@@ -89,6 +89,16 @@ class ReservationRepository {
     return rows.isEmpty ? null : Reservation.fromMap(rows.first);
   }
 
+  /// Enregistre le résultat de l'analyse IA de la note client.
+  Future<void> saveNoteAnalysis(int id, NoteAnalysis analysis) async {
+    await (await _database).update(
+      'reservations',
+      {'analyse_note': analysis.encode()},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<bool> referenceExists(String reference) async {
     final rows = await (await _database).query(
       'reservations',

@@ -8,12 +8,13 @@ import 'package:smartfood/core/utils/phone_call.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/core/database/data_changes.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
-import 'package:smartfood/features/reservations/screens/restaurant_reservation_detail_screen.dart';
+import 'package:smartfood/features/reservations/screens/restaurant/restaurant_reservation_detail_screen.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
+import 'package:smartfood/features/reservations/widgets/note_analysis_badges.dart';
 import 'package:smartfood/features/reservations/widgets/pickup_validation_sheet.dart';
 import 'package:smartfood/features/restaurants/models/menu.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
-import 'package:smartfood/features/restaurants/screens/restaurant_detail_screen.dart';
+import 'package:smartfood/features/restaurants/screens/restaurant/restaurant_detail_screen.dart';
 import 'package:smartfood/features/restaurants/services/menu_service.dart';
 import 'package:smartfood/features/restaurants/services/restaurant_service.dart';
 
@@ -75,6 +76,8 @@ class _RestaurantMonitorScreenState extends State<RestaurantMonitorScreen> {
     if (!mounted) return;
 
     _notifyNewReservations(reservations);
+    // Notes pas encore analysées par l'IA (anciennes réservations…).
+    _reservationService.analyzeMissingNotes(reservations);
     setState(() {
       _restaurant = restaurant;
       _reservations = reservations;
@@ -166,9 +169,16 @@ class _RestaurantMonitorScreenState extends State<RestaurantMonitorScreen> {
     bool isToday(DateTime d) =>
         d.year == now.year && d.month == now.month && d.day == now.day;
 
+    // Les réservations avec allergie passent en tête, puis par heure.
     List<Reservation> byStatus(Set<String> statuses) =>
         _reservations.where((r) => statuses.contains(r.status)).toList()
-          ..sort((a, b) => a.pickupAt.compareTo(b.pickupAt));
+          ..sort((a, b) {
+            if (a.hasAllergy != b.hasAllergy) return a.hasAllergy ? -1 : 1;
+            return a.pickupAt.compareTo(b.pickupAt);
+          });
+    final allergies = _reservations
+        .where((r) => r.isActive && r.hasAllergy)
+        .length;
 
     final pending = byStatus({ReservationStatus.enAttente});
     final kitchen =
@@ -267,6 +277,12 @@ class _RestaurantMonitorScreenState extends State<RestaurantMonitorScreen> {
                         ?.copyWith(color: AppColors.muted),
                   ),
                   const SizedBox(height: 12),
+                  if (allergies > 0)
+                    _AlertBar(
+                      icon: Icons.warning_amber_rounded,
+                      color: AppColors.error,
+                      text: '$allergies réservation(s) avec allergie signalée',
+                    ),
                   if (late > 0)
                     _AlertBar(
                       icon: Icons.timer_off_outlined,
@@ -512,8 +528,10 @@ class _ReservationTile extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-          color: late ? AppColors.error : AppColors.border,
-          width: late ? 1.4 : 1,
+          color: late || reservation.hasAllergy
+              ? AppColors.error
+              : AppColors.border,
+          width: late || reservation.hasAllergy ? 1.4 : 1,
         ),
       ),
       child: InkWell(
@@ -564,9 +582,9 @@ class _ReservationTile extends StatelessWidget {
                         ),
                         if (reservation.note != null) ...[
                           const SizedBox(width: 6),
-                          const Tooltip(
-                            message: 'Note du client',
-                            child: Icon(
+                          Tooltip(
+                            message: 'Note : ${reservation.note}',
+                            child: const Icon(
                               Icons.sticky_note_2_outlined,
                               size: 16,
                               color: AppColors.warning,
@@ -575,6 +593,13 @@ class _ReservationTile extends StatelessWidget {
                         ],
                       ],
                     ),
+                    if (reservation.note != null) ...[
+                      const SizedBox(height: 6),
+                      NoteAnalysisBadges(
+                        reservation: reservation,
+                        compact: true,
+                      ),
+                    ],
                   ],
                 ),
               ),

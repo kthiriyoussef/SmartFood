@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:smartfood/app/theme.dart';
 import 'package:smartfood/features/reservations/models/reservation.dart';
-import 'package:smartfood/features/reservations/screens/reservation_details_client.dart';
+import 'package:smartfood/features/reservations/screens/client/reservation_details_client.dart';
 import 'package:smartfood/features/reservations/services/reservation_service.dart';
 import 'package:smartfood/features/reservations/widgets/reservation_card.dart';
 

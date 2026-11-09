@@ -1,17 +1,14 @@
-import 'package:smartfood/features/auth/screens/change_password_screen.dart';
-
 import 'package:flutter/material.dart';
-
-import 'role_scope.dart';
-import 'role_shell.dart';
-
-import '../core/database/data_changes.dart';
-import '../features/reservations/screens/reservation_history_client_screen.dart';
-import '../features/reservations/services/reservation_service.dart';
-import '../features/restaurants/screens/client_restaurant_catalog_screen.dart';
-import '../features/restaurants/screens/restaurant_access_status_screen.dart';
-import '../features/users/screens/client_profile_screen.dart';
-import '../features/reclamation/screens/support_navigation_screen.dart';
+import 'package:smartfood/features/auth/screens/change_password_screen.dart';
+import 'package:smartfood/app/role_scope.dart';
+import 'package:smartfood/app/role_shell.dart';
+import 'package:smartfood/core/database/data_changes.dart';
+import 'package:smartfood/features/reservations/screens/client/reservation_history_client_screen.dart';
+import 'package:smartfood/features/reservations/services/reservation_service.dart';
+import 'package:smartfood/features/restaurants/screens/client/client_restaurant_catalog_screen.dart';
+import 'package:smartfood/features/restaurants/screens/restaurant_access_status_screen.dart';
+import 'package:smartfood/features/users/screens/client/client_profile_screen.dart';
+import 'package:smartfood/features/reclamation/screens/support_navigation_screen.dart';
 
 class ClientShell extends StatefulWidget {
   const ClientShell({super.key});
