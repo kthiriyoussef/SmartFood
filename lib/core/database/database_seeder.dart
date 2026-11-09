@@ -32,18 +32,35 @@ class DatabaseSeeder {
       'nom': 'SmartFood',
       'prenom': 'Admin',
       'email': email,
-      'password_hash': BCrypt.hashpw(
-        password,
-        BCrypt.gensalt(),
-      ),
+      'password_hash': BCrypt.hashpw(password, BCrypt.gensalt()),
       'role': 'ADMIN',
       'restaurant_id': null,
       'actif': 1,
     });
   }
 
+  /// Fournisseurs de démonstration nécessaires au formulaire d'achat.
+  static Future<void> ensureSalesSuppliers(Database database) async {
+    final count =
+        Sqflite.firstIntValue(
+          await database.rawQuery('SELECT COUNT(*) FROM fournisseurs'),
+        ) ??
+        0;
+    if (count > 0) return;
+    await database.transaction((txn) async {
+      for (final name in [
+        'Fournisseur alimentaire',
+        'Boucherie centrale',
+        'Fruits et légumes',
+      ]) {
+        await txn.insert('fournisseurs', {'nom': name, 'telephone': ''});
+      }
+    });
+  }
+
   static Future<void> seedIfEmpty(Database database) async {
-    final count = Sqflite.firstIntValue(
+    final count =
+        Sqflite.firstIntValue(
           await database.rawQuery('SELECT COUNT(*) FROM restaurants'),
         ) ??
         0;
@@ -92,10 +109,14 @@ class DatabaseSeeder {
     );
     if (rows.isNotEmpty) {
       final id = int.tryParse(rows.first['valeur'] as String);
-      final exists = id != null &&
-          (await database.query('restaurants',
-                  where: 'id = ?', whereArgs: [id], limit: 1))
-              .isNotEmpty;
+      final exists =
+          id != null &&
+          (await database.query(
+            'restaurants',
+            where: 'id = ?',
+            whereArgs: [id],
+            limit: 1,
+          )).isNotEmpty;
       if (exists) return;
     }
 
@@ -121,11 +142,10 @@ class DatabaseSeeder {
           'date_creation': now,
         });
       }
-      await txn.insert(
-        'app_settings',
-        {'cle': currentRestaurantKey, 'valeur': '$id'},
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await txn.insert('app_settings', {
+        'cle': currentRestaurantKey,
+        'valeur': '$id',
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     });
   }
 
@@ -135,15 +155,36 @@ class DatabaseSeeder {
     ville: 'Tunis',
     telephone: '+216 71 000 000',
     menus: [
-      _SeedMenu('Salade tunisienne',
-          'Tomates, concombre, oignon, thon et olives.', 8, 'Entrée', 15),
-      _SeedMenu('Lablabi', 'Pois chiches, pain, harissa, œuf et cumin.', 7,
-          'Plat', 12),
-      _SeedMenu('Escalope panée', 'Escalope de poulet, frites et salade.', 19,
-          'Plat', 3),
+      _SeedMenu(
+        'Salade tunisienne',
+        'Tomates, concombre, oignon, thon et olives.',
+        8,
+        'Entrée',
+        15,
+      ),
+      _SeedMenu(
+        'Lablabi',
+        'Pois chiches, pain, harissa, œuf et cumin.',
+        7,
+        'Plat',
+        12,
+      ),
+      _SeedMenu(
+        'Escalope panée',
+        'Escalope de poulet, frites et salade.',
+        19,
+        'Plat',
+        3,
+      ),
       _SeedMenu('Makroudh', 'Semoule, dattes et miel.', 5, 'Dessert', 20),
-      _SeedMenu('Jus d’orange', 'Oranges pressées minute.', 6, 'Boisson', 0,
-          disponible: false),
+      _SeedMenu(
+        'Jus d’orange',
+        'Oranges pressées minute.',
+        6,
+        'Boisson',
+        0,
+        disponible: false,
+      ),
     ],
   );
 
@@ -155,20 +196,41 @@ class DatabaseSeeder {
       telephone: '+216 71 123 456',
       menus: [
         _SeedMenu(
-            'Brik à l’œuf',
-            'Thon, câpres et œuf frais dans une feuille croustillante.',
-            8.5,
-            'Entrée',
-            14),
-        _SeedMenu('Couscous du chef',
-            'Légumes de saison et agneau mijoté aux épices.', 26, 'Plat', 8),
-        _SeedMenu('Bowl méditerranéen',
-            'Céréales, légumes frais et sauce aux herbes.', 18, 'Plat', 6),
-        _SeedMenu('Pâtisseries maison',
-            'Sélection du jour, préparée sur place.', 12, 'Dessert', 0,
-            disponible: false),
-        _SeedMenu('Citronnade à la menthe',
-            'Citron fraîchement pressé et menthe.', 6, 'Boisson', 20),
+          'Brik à l’œuf',
+          'Thon, câpres et œuf frais dans une feuille croustillante.',
+          8.5,
+          'Entrée',
+          14,
+        ),
+        _SeedMenu(
+          'Couscous du chef',
+          'Légumes de saison et agneau mijoté aux épices.',
+          26,
+          'Plat',
+          8,
+        ),
+        _SeedMenu(
+          'Bowl méditerranéen',
+          'Céréales, légumes frais et sauce aux herbes.',
+          18,
+          'Plat',
+          6,
+        ),
+        _SeedMenu(
+          'Pâtisseries maison',
+          'Sélection du jour, préparée sur place.',
+          12,
+          'Dessert',
+          0,
+          disponible: false,
+        ),
+        _SeedMenu(
+          'Citronnade à la menthe',
+          'Citron fraîchement pressé et menthe.',
+          6,
+          'Boisson',
+          20,
+        ),
       ],
     ),
     _SeedRestaurant(
@@ -178,17 +240,33 @@ class DatabaseSeeder {
       telephone: '+216 73 456 789',
       menus: [
         _SeedMenu(
-            'Salade méchouia',
-            'Poivrons et tomates grillés, thon, œuf et huile d’olive.',
-            9,
-            'Entrée',
-            10),
-        _SeedMenu('Ojja merguez',
-            'Sauce tomate épicée, merguez et œufs pochés.', 16, 'Plat', 4),
-        _SeedMenu('Poisson grillé',
-            'Daurade du jour, légumes vapeur et citron.', 32, 'Plat', 5),
-        _SeedMenu('Thé aux pignons', 'Thé vert à la menthe et pignons grillés.',
-            5, 'Boisson', 30),
+          'Salade méchouia',
+          'Poivrons et tomates grillés, thon, œuf et huile d’olive.',
+          9,
+          'Entrée',
+          10,
+        ),
+        _SeedMenu(
+          'Ojja merguez',
+          'Sauce tomate épicée, merguez et œufs pochés.',
+          16,
+          'Plat',
+          4,
+        ),
+        _SeedMenu(
+          'Poisson grillé',
+          'Daurade du jour, légumes vapeur et citron.',
+          32,
+          'Plat',
+          5,
+        ),
+        _SeedMenu(
+          'Thé aux pignons',
+          'Thé vert à la menthe et pignons grillés.',
+          5,
+          'Boisson',
+          30,
+        ),
       ],
     ),
     _SeedRestaurant(
@@ -197,16 +275,27 @@ class DatabaseSeeder {
       ville: 'Tunis',
       telephone: '+216 71 987 654',
       menus: [
-        _SeedMenu('Soupe de lentilles', 'Lentilles corail, cumin et citron.', 7,
-            'Entrée', 12),
         _SeedMenu(
-            'Menu du marché',
-            'Entrée, plat et dessert selon l’arrivage du jour.',
-            35,
-            'Menu complet',
-            3),
-        _SeedMenu('Assida aux pignons', 'Crème parfumée, pignons et pistaches.',
-            11, 'Dessert', 7),
+          'Soupe de lentilles',
+          'Lentilles corail, cumin et citron.',
+          7,
+          'Entrée',
+          12,
+        ),
+        _SeedMenu(
+          'Menu du marché',
+          'Entrée, plat et dessert selon l’arrivage du jour.',
+          35,
+          'Menu complet',
+          3,
+        ),
+        _SeedMenu(
+          'Assida aux pignons',
+          'Crème parfumée, pignons et pistaches.',
+          11,
+          'Dessert',
+          7,
+        ),
       ],
     ),
   ];
