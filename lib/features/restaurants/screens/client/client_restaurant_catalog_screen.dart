@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:smartfood/app/role_scope.dart';
 import 'package:smartfood/app/theme.dart';
+import 'package:smartfood/features/shop/screens/client_shop_screen.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
 import 'package:smartfood/features/restaurants/screens/client/client_restaurant_menu_screen.dart';
 import 'package:smartfood/features/restaurants/services/restaurant_service.dart';
@@ -51,14 +53,15 @@ class _ClientRestaurantCatalogScreenState
   String _selectedArea = 'Tout';
 
   List<String> get _areas => [
-        'Tout',
-        ...{for (final restaurant in _restaurants) restaurant.ville},
-      ];
+    'Tout',
+    ...{for (final restaurant in _restaurants) restaurant.ville},
+  ];
 
   List<Restaurant> get _filteredRestaurants {
     final query = _query.trim().toLowerCase();
     return _restaurants.where((restaurant) {
-      final matchesQuery = query.isEmpty ||
+      final matchesQuery =
+          query.isEmpty ||
           restaurant.nom.toLowerCase().contains(query) ||
           restaurant.adresse.toLowerCase().contains(query) ||
           restaurant.ville.toLowerCase().contains(query);
@@ -81,6 +84,17 @@ class _ClientRestaurantCatalogScreenState
       appBar: AppBar(
         title: const Text('SmartFood'),
         actions: [
+          IconButton(
+            tooltip: 'Commander et payer',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ClientShopScreen(
+                  clientUserId: RoleScope.of(context).userId,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.shopping_bag_outlined),
+          ),
           IconButton(
             tooltip: 'Notifications',
             onPressed: () {},
@@ -115,9 +129,7 @@ class _ClientRestaurantCatalogScreenState
                           children: [
                             Text(
                               'De bonnes choses, tout près.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
+                              style: Theme.of(context).textTheme.headlineSmall
                                   ?.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -126,9 +138,7 @@ class _ClientRestaurantCatalogScreenState
                             const SizedBox(height: 7),
                             Text(
                               'Découvrez les restaurants et leurs spécialités.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
+                              style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: Colors.white.withOpacity(0.94),
                                   ),
@@ -210,10 +220,10 @@ class _ClientRestaurantCatalogScreenState
                       side: BorderSide(
                         color: selected ? AppColors.primary : AppColors.border,
                       ),
-                      labelStyle:
-                          Theme.of(context).textTheme.labelLarge?.copyWith(
-                                color: selected ? Colors.white : AppColors.text,
-                              ),
+                      labelStyle: Theme.of(context).textTheme.labelLarge
+                          ?.copyWith(
+                            color: selected ? Colors.white : AppColors.text,
+                          ),
                     );
                   },
                 ),
@@ -227,16 +237,14 @@ class _ClientRestaurantCatalogScreenState
                     Expanded(
                       child: Text(
                         'Restaurants près de vous',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                     ),
                     Text(
                       '${restaurants.length} lieux',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.muted,
-                          ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -299,10 +307,7 @@ class _ClientRestaurantCatalogScreenState
 }
 
 class _ClientRestaurantCard extends StatelessWidget {
-  const _ClientRestaurantCard({
-    required this.restaurant,
-    required this.onTap,
-  });
+  const _ClientRestaurantCard({required this.restaurant, required this.onTap});
 
   final Restaurant restaurant;
   final VoidCallback onTap;
@@ -364,9 +369,7 @@ class _ClientRestaurantCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(
                             '4.8',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelMedium
+                            style: Theme.of(context).textTheme.labelMedium
                                 ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                         ],
@@ -393,9 +396,8 @@ class _ClientRestaurantCard extends StatelessWidget {
                     restaurant.nom,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 7),
                   Row(
@@ -411,10 +413,8 @@ class _ClientRestaurantCard extends StatelessWidget {
                           '${restaurant.adresse}, ${restaurant.ville}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.muted,
-                                  ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.muted),
                         ),
                       ),
                     ],
@@ -431,18 +431,18 @@ class _ClientRestaurantCard extends StatelessWidget {
                       Text(
                         'Voir la carte',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const Spacer(),
                       Text(
                         'Ouvert',
-                        style:
-                            Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                       const SizedBox(width: 6),
                       const Icon(
@@ -481,17 +481,15 @@ class _EmptySearchState extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Aucun restaurant trouvé',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 5),
             Text(
               'Essayez un autre nom ou une autre ville.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.muted,
-                  ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.muted),
             ),
           ],
         ),

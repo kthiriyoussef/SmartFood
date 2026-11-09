@@ -11,6 +11,7 @@ import 'package:smartfood/core/database/database_helper.dart';
 import 'package:smartfood/features/restaurants/screens/restaurant/menu_list_screen.dart';
 import 'package:smartfood/features/restaurants/screens/restaurant/restaurant_dashboard_screen.dart';
 import 'package:smartfood/features/recruitment/screens/job_offer_list_restaurant.dart';
+import 'package:smartfood/features/sales/screens/sales_screen.dart';
 
 /// Espace restaurant (un seul restaurant : le « Restaurant Test »).
 /// Tableau de bord · Suivi · Plats · Historique · Recrutement.
@@ -44,12 +45,19 @@ class _RestaurantShellState extends State<RestaurantShell> {
   Future<void> _init() async {
     final userId = RoleScope.of(context).userId;
     final db = await DatabaseHelper.instance.database;
-    final rows = await db.query('users',
-        columns: ['restaurant_id'], where: "id = ? AND role = 'RESTO' AND actif = 1",
-        whereArgs: [userId], limit: 1);
+    final rows = await db.query(
+      'users',
+      columns: ['restaurant_id'],
+      where: "id = ? AND role = 'RESTO' AND actif = 1",
+      whereArgs: [userId],
+      limit: 1,
+    );
     final id = rows.isEmpty ? null : rows.first['restaurant_id'] as int?;
     if (!mounted) return;
-    setState(() { _restaurantId = id; _loaded = true; });
+    setState(() {
+      _restaurantId = id;
+      _loaded = true;
+    });
     _refreshBadge();
   }
 
@@ -57,8 +65,9 @@ class _RestaurantShellState extends State<RestaurantShell> {
   Future<void> _refreshBadge() async {
     final id = _restaurantId;
     if (id == null) return;
-    final reservations =
-    await ReservationService().getReservations(restaurantId: id);
+    final reservations = await ReservationService().getReservations(
+      restaurantId: id,
+    );
     if (!mounted) return;
     _pendingCount.value = reservations
         .where((r) => r.status == ReservationStatus.enAttente)
@@ -72,9 +81,14 @@ class _RestaurantShellState extends State<RestaurantShell> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (id == null) {
-      return Scaffold(appBar: AppBar(title: const Text('SmartFood RESTO')),
-          body: const Center(child: Text(
-              'Aucun restaurant associé à ce compte. Contactez un administrateur.')));
+      return Scaffold(
+        appBar: AppBar(title: const Text('SmartFood RESTO')),
+        body: const Center(
+          child: Text(
+            'Aucun restaurant associé à ce compte. Contactez un administrateur.',
+          ),
+        ),
+      );
     }
     return RoleShell(
       switchLabel: 'Déconnexion',
@@ -105,6 +119,12 @@ class _RestaurantShellState extends State<RestaurantShell> {
           selectedIcon: Icons.restaurant_menu_rounded,
           label: 'Plats',
           root: MenuListScreen(restaurantId: id),
+        ),
+        ShellTab(
+          icon: Icons.point_of_sale_outlined,
+          selectedIcon: Icons.point_of_sale_rounded,
+          label: 'Ventes',
+          root: SalesScreen(restaurantId: id),
         ),
         ShellTab(
           icon: Icons.history_outlined,

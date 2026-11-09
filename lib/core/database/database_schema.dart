@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseSchema {
-  static const int version = 13;
+  static const int version = 14;
 
   static Future<void> create(Database database, int _) async {
     await database.execute('''
@@ -45,6 +45,7 @@ class DatabaseSchema {
     await _createClientProfile(database);
     await _createSettings(database);
     await _createUsers(database);
+    await _createSalesPurchases(database);
     await _createReclamations(database);
     await _createReclamationMessages(database);
     await _createRestaurantRoleRequests(database);
@@ -148,6 +149,81 @@ class DatabaseSchema {
         'TEXT',
       );
     }
+    if (oldVersion < 14) {
+      await _createSalesPurchases(database);
+    }
+  }
+
+  static Future<void> _createSalesPurchases(DatabaseExecutor database) async {
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS fournisseurs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom TEXT NOT NULL,
+        telephone TEXT
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS ventes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        restaurant_id INTEGER NOT NULL,
+        date_vente TEXT NOT NULL,
+        mode_paiement TEXT NOT NULL DEFAULT 'autre',
+        montant_recu INTEGER NOT NULL DEFAULT 0,
+        client_user_id INTEGER,
+        sous_total INTEGER NOT NULL DEFAULT 0,
+        remise INTEGER NOT NULL DEFAULT 0,
+        taux_remise INTEGER NOT NULL DEFAULT 0,
+        motif_annulation TEXT,
+        statut TEXT NOT NULL DEFAULT 'en_attente',
+        total INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
+        FOREIGN KEY (client_user_id) REFERENCES users(id) ON DELETE SET NULL
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS lignes_vente (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vente_id INTEGER NOT NULL,
+        designation TEXT NOT NULL,
+        quantite REAL NOT NULL,
+        prix_unitaire INTEGER NOT NULL,
+        menu_id INTEGER,
+        FOREIGN KEY (vente_id) REFERENCES ventes(id) ON DELETE CASCADE,
+        FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE SET NULL
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS achats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fournisseur_id INTEGER NOT NULL,
+        restaurant_id INTEGER NOT NULL,
+        date_achat TEXT NOT NULL,
+        date_livraison_prevue TEXT NOT NULL,
+        statut TEXT NOT NULL DEFAULT 'en_attente',
+        total INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (fournisseur_id) REFERENCES fournisseurs(id),
+        FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS lignes_achat (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        achat_id INTEGER NOT NULL,
+        designation TEXT NOT NULL,
+        quantite REAL NOT NULL,
+        unite TEXT NOT NULL,
+        prix_unitaire INTEGER NOT NULL,
+        FOREIGN KEY (achat_id) REFERENCES achats(id) ON DELETE CASCADE
+      )
+    ''');
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_ventes_restaurant_date '
+      'ON ventes(restaurant_id, date_vente)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_achats_restaurant_date '
+      'ON achats(restaurant_id, date_achat)',
+    );
   }
 
   static Future<void> _addColumnIfMissing(
@@ -165,17 +241,13 @@ class DatabaseSchema {
     final columns = await database.rawQuery('PRAGMA table_info($table)');
     if (columns.any((row) => row['name'] == column)) return;
 
-    await database.execute(
-      'ALTER TABLE $table ADD COLUMN $column $definition',
-    );
+    await database.execute('ALTER TABLE $table ADD COLUMN $column $definition');
   }
 
   /// Réservations des clients.
   /// Les informations des plats et restaurants sont conservées
   /// même si le menu original est modifié.
-  static Future<void> _createReservations(
-    DatabaseExecutor database,
-  ) async {
+  static Future<void> _createReservations(DatabaseExecutor database) async {
     await database.execute('''
       CREATE TABLE reservations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -226,9 +298,7 @@ class DatabaseSchema {
   }
 
   /// Profil local du client.
-  static Future<void> _createClientProfile(
-    DatabaseExecutor database,
-  ) async {
+  static Future<void> _createClientProfile(DatabaseExecutor database) async {
     await database.execute('''
       CREATE TABLE profil_client (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -241,9 +311,7 @@ class DatabaseSchema {
   }
 
   /// Paramètres de l'application.
-  static Future<void> _createSettings(
-    DatabaseExecutor database,
-  ) async {
+  static Future<void> _createSettings(DatabaseExecutor database) async {
     await database.execute('''
       CREATE TABLE app_settings (
         cle TEXT PRIMARY KEY,
@@ -253,9 +321,7 @@ class DatabaseSchema {
   }
 
   /// Comptes utilisateurs.
-  static Future<void> _createUsers(
-    DatabaseExecutor database,
-  ) async {
+  static Future<void> _createUsers(DatabaseExecutor database) async {
     await database.execute('''
       CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -285,9 +351,7 @@ class DatabaseSchema {
   }
 
   /// Réclamations clients avec priorité automatique.
-  static Future<void> _createReclamations(
-    DatabaseExecutor database,
-  ) async {
+  static Future<void> _createReclamations(DatabaseExecutor database) async {
     await database.execute('''
       CREATE TABLE reclamations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -429,9 +493,9 @@ class DatabaseSchema {
   }
 
   static Future<void> _createRestaurantAccessRequests(
-  DatabaseExecutor database,
+    DatabaseExecutor database,
   ) async {
-  await database.execute('''
+    await database.execute('''
     CREATE TABLE restaurant_access_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -453,15 +517,15 @@ class DatabaseSchema {
     )
   ''');
 
-  await database.execute(
-    'CREATE INDEX idx_restaurant_access_requests_status '
-    'ON restaurant_access_requests(status)',
-  );
-  await database.execute(
-    'CREATE INDEX idx_restaurant_access_requests_user '
-    'ON restaurant_access_requests(user_id, submitted_at)',
-  );
-  await database.execute('''
+    await database.execute(
+      'CREATE INDEX idx_restaurant_access_requests_status '
+      'ON restaurant_access_requests(status)',
+    );
+    await database.execute(
+      'CREATE INDEX idx_restaurant_access_requests_user '
+      'ON restaurant_access_requests(user_id, submitted_at)',
+    );
+    await database.execute('''
     CREATE UNIQUE INDEX idx_restaurant_access_one_pending
     ON restaurant_access_requests(user_id)
     WHERE status = 'pending'
