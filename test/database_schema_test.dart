@@ -56,4 +56,22 @@ void main() {
     expect(row['priorite'], 'MOYENNE');
     expect(row['impact'], 'NORMAL');
   });
+
+  test('upgrade from version 11 creates restaurant access requests', () async {
+    await database.execute('CREATE TABLE users (id INTEGER PRIMARY KEY)');
+
+    await DatabaseSchema.upgrade(database, 11, DatabaseSchema.version);
+
+    final tables = await database.rawQuery(
+      "SELECT name FROM sqlite_master "
+      "WHERE type = 'table' AND name = 'restaurant_access_requests'",
+    );
+    expect(tables, isNotEmpty);
+
+    final indexes = await database.rawQuery(
+      "SELECT name FROM sqlite_master "
+      "WHERE type = 'index' AND name = 'idx_restaurant_access_one_pending'",
+    );
+    expect(indexes, isNotEmpty);
+  });
 }

@@ -1,6 +1,4 @@
-
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:bcrypt/bcrypt.dart';
 
@@ -32,6 +30,19 @@ void main() {
         actif INTEGER NOT NULL DEFAULT 1
       )
     ''');
+    await db.execute('''
+      CREATE TABLE restaurant_access_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        user_name TEXT NOT NULL,
+        user_email TEXT NOT NULL,
+        requested_role TEXT NOT NULL DEFAULT 'restaurant',
+        status TEXT NOT NULL DEFAULT 'pending',
+        submitted_at TEXT NOT NULL,
+        reviewed_at TEXT,
+        admin_id INTEGER
+      )
+    ''');
 
     auth = AuthService.forTesting(db);
   });
@@ -51,8 +62,61 @@ void main() {
 
       expect(user['email'], 'client@test.com');
       expect(user['role'], 'CLIENT');
+      expect(user['restaurant_id'], isNull);
       expect(user['actif'], 1);
       expect(user.containsKey('password_hash'), false);
+    });
+
+    test('Inscription restaurant creates a pending request, not a role',
+        () async {
+      final user = await auth.register(
+        nom: 'Test',
+        prenom: 'Restaurant',
+        email: 'owner@test.com',
+        password: 'Password123!',
+        requestRestaurantAccess: true,
+      );
+
+      expect(user['role'], 'CLIENT');
+      expect(user['restaurant_id'], isNull);
+      final requests = await db.query(
+        'restaurant_access_requests',
+        where: 'user_id = ?',
+        whereArgs: [user['id']],
+      );
+      expect(requests, hasLength(1));
+      expect(requests.single['requested_role'], 'restaurant');
+      expect(requests.single['user_name'], 'Restaurant Test');
+      expect(requests.single['user_email'], 'owner@test.com');
+      expect(requests.single['status'], 'pending');
+      expect(requests.single['admin_id'], isNull);
+    });
+
+    test('Customer registration does not create an access request', () async {
+      await auth.register(
+        nom: 'Test',
+        prenom: 'Client',
+        email: 'client@test.com',
+        password: 'Password123!',
+      );
+
+      expect(await db.query('restaurant_access_requests'), isEmpty);
+    });
+
+    test('A user cannot create duplicate pending requests', () async {
+      final user = await auth.register(
+        nom: 'Test',
+        prenom: 'Client',
+        email: 'client@test.com',
+        password: 'Password123!',
+      );
+      final userId = user['id'] as int;
+      await auth.submitRestaurantAccessRequest(userId: userId);
+
+      await expectLater(
+        auth.submitRestaurantAccessRequest(userId: userId),
+        throwsStateError,
+      );
     });
 
     test('Email déjà utilisé refusé', () async {

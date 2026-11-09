@@ -11,6 +11,12 @@ class RestaurantValidationException implements Exception {
   String toString() => message;
 }
 
+enum RestaurantPostLoginDestination {
+  existingRoleFlow,
+  createRestaurant,
+  restaurantDashboard,
+}
+
 class RestaurantService {
   RestaurantService({RestaurantRepository? repository})
       : _repository = repository ?? RestaurantRepository();
@@ -30,6 +36,21 @@ class RestaurantService {
   Future<Restaurant?> getRestaurantById(int id) =>
       _repository.getRestaurantById(id);
 
+  Future<RestaurantPostLoginDestination> getPostLoginDestination({
+    required int userId,
+    required String role,
+  }) async {
+    final normalizedRole = role.trim().toUpperCase();
+    if (normalizedRole != 'RESTO' && normalizedRole != 'RESTAURANT') {
+      return RestaurantPostLoginDestination.existingRoleFlow;
+    }
+
+    final restaurantId = await _repository.getRestaurantIdForOwner(userId);
+    return restaurantId == null
+        ? RestaurantPostLoginDestination.createRestaurant
+        : RestaurantPostLoginDestination.restaurantDashboard;
+  }
+
   Future<int> sauvegarderRestaurant(Restaurant restaurant) async {
     final cleaned = restaurant.copyWith(
       nom: restaurant.nom.trim(),
@@ -43,6 +64,27 @@ class RestaurantService {
         : await _updateAndReturnId(cleaned);
     DataChanges.catalogChanged();
     return id;
+  }
+
+  Future<int> sauvegarderRestaurantPourProprietaire(
+    Restaurant restaurant,
+    int userId,
+  ) async {
+    final cleaned = restaurant.copyWith(
+      nom: restaurant.nom.trim(),
+      adresse: restaurant.adresse.trim(),
+      ville: restaurant.ville.trim(),
+      telephone: restaurant.telephone.trim(),
+    );
+    _valider(cleaned);
+
+    try {
+      final id = await _repository.createRestaurantForOwner(cleaned, userId);
+      DataChanges.catalogChanged();
+      return id;
+    } on RestaurantOwnershipException catch (error) {
+      throw RestaurantValidationException(error.message);
+    }
   }
 
   Future<int> _updateAndReturnId(Restaurant restaurant) async {

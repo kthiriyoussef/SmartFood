@@ -9,6 +9,7 @@ import '../core/database/data_changes.dart';
 import '../features/reservations/screens/reservation_history_client_screen.dart';
 import '../features/reservations/services/reservation_service.dart';
 import '../features/restaurants/screens/client_restaurant_catalog_screen.dart';
+import '../features/restaurants/screens/restaurant_access_status_screen.dart';
 import '../features/users/screens/client_profile_screen.dart';
 import '../features/reclamation/screens/support_navigation_screen.dart';
 
@@ -81,6 +82,14 @@ class _ClientShellState extends State<ClientShell> {
           selectedIcon: Icons.person_rounded,
           label: 'Profil',
           root: ClientProfileScreen(),
+        ),
+        ShellTab(
+          icon: Icons.storefront_outlined,
+          selectedIcon: Icons.storefront,
+          label: 'Accès resto',
+          root: RestaurantAccessStatusScreen(
+            userId: RoleScope.of(context).userId,
+          ),
         ),
         const ShellTab(
           icon: Icons.support_agent_outlined,

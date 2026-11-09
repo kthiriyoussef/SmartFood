@@ -8,9 +8,19 @@ import 'package:smartfood/features/restaurants/widgets/gradient_action_button.da
 /// Création / modification d'un restaurant.
 /// Renvoie l'id du restaurant enregistré via `Navigator.pop`.
 class RestaurantFormScreen extends StatefulWidget {
-  const RestaurantFormScreen({super.key, this.restaurant});
+  const RestaurantFormScreen({
+    super.key,
+    this.restaurant,
+    this.ownerUserId,
+    this.onOwnerRestaurantCreated,
+  })  : assert(
+          (ownerUserId == null) == (onOwnerRestaurantCreated == null),
+        ),
+        assert(ownerUserId == null || restaurant == null);
 
   final Restaurant? restaurant;
+  final int? ownerUserId;
+  final void Function(int restaurantId)? onOwnerRestaurantCreated;
 
   @override
   State<RestaurantFormScreen> createState() => _RestaurantFormScreenState();
@@ -66,7 +76,13 @@ class _RestaurantFormScreenState extends State<RestaurantFormScreen> {
             telephone: _telephone.text,
           );
     try {
-      final id = await _service.sauvegarderRestaurant(restaurant);
+      final ownerUserId = widget.ownerUserId;
+      final id = ownerUserId == null
+          ? await _service.sauvegarderRestaurant(restaurant)
+          : await _service.sauvegarderRestaurantPourProprietaire(
+              restaurant,
+              ownerUserId,
+            );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -76,7 +92,12 @@ class _RestaurantFormScreenState extends State<RestaurantFormScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      Navigator.of(context).pop(id);
+      final onOwnerRestaurantCreated = widget.onOwnerRestaurantCreated;
+      if (onOwnerRestaurantCreated == null) {
+        Navigator.of(context).pop(id);
+      } else {
+        onOwnerRestaurantCreated(id);
+      }
     } on RestaurantValidationException catch (e) {
       _error(e.message);
     } catch (_) {

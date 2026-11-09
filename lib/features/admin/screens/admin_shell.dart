@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:smartfood/app/role_shell.dart';
 import 'package:smartfood/features/admin/screens/admin_dashboard_screen.dart';
+import 'package:smartfood/features/admin/screens/admin_resto_requests_screen.dart';
+import 'package:smartfood/features/admin/screens/admin_restaurant_access_screen.dart';
 import 'package:smartfood/features/users/screens/admin_users_screen.dart';
 import 'package:smartfood/features/auth/screens/change_password_screen.dart';
 import 'package:smartfood/features/reclamation/screens/admin_reclamations_screen.dart';
@@ -36,6 +38,22 @@ class AdminShell extends StatelessWidget {
           selectedIcon: Icons.people,
           label: 'Comptes',
           root: AdminUsersScreen(
+            actorId: userId,
+          ),
+        ),
+        ShellTab(
+          icon: Icons.pending_actions_outlined,
+          selectedIcon: Icons.pending_actions,
+          label: 'Demandes RESTO',
+          root: AdminRestoRequestsScreen(
+            actorId: userId,
+          ),
+        ),
+        ShellTab(
+          icon: Icons.storefront_outlined,
+          selectedIcon: Icons.storefront,
+          label: 'Demandes d’accès',
+          root: AdminRestaurantAccessScreen(
             actorId: userId,
           ),
         ),

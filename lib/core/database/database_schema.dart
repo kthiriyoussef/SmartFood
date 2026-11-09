@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseSchema {
-  static const int version = 10;
+  static const int version = 12;
 
   static Future<void> create(Database database, int _) async {
     await database.execute('''
@@ -47,6 +47,8 @@ class DatabaseSchema {
     await _createUsers(database);
     await _createReclamations(database);
     await _createReclamationMessages(database);
+    await _createRestaurantRoleRequests(database);
+    await _createRestaurantAccessRequests(database);
   }
 
   static Future<void> upgrade(
@@ -131,6 +133,13 @@ class DatabaseSchema {
     // Migration vers la version 10 : messagerie des réclamations.
     if (oldVersion < 10) {
       await _createReclamationMessages(database);
+    }
+    // Migration version 11 : demandes de rôle RESTO.
+    if (oldVersion < 11) {
+      await _createRestaurantRoleRequests(database);
+    }
+    if (oldVersion < 12) {
+      await _createRestaurantAccessRequests(database);
     }
   }
 
@@ -353,6 +362,95 @@ class DatabaseSchema {
     await database.execute('''
     CREATE INDEX idx_reclamation_messages_sender
     ON reclamation_messages(sender_id)
+  ''');
+  }
+
+  static Future<void> _createRestaurantRoleRequests(
+    DatabaseExecutor database,
+  ) async {
+    await database.execute('''
+    CREATE TABLE restaurant_role_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      restaurant_id INTEGER NOT NULL,
+      statut TEXT NOT NULL DEFAULT 'EN_ATTENTE'
+        CHECK (statut IN (
+          'EN_ATTENTE',
+          'ACCEPTEE',
+          'REFUSEE'
+        )),
+      date_demande TEXT NOT NULL,
+      date_decision TEXT,
+      admin_id INTEGER,
+
+      FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE RESTRICT,
+
+      FOREIGN KEY (restaurant_id)
+        REFERENCES restaurants(id)
+        ON DELETE RESTRICT,
+
+      FOREIGN KEY (admin_id)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+    )
+  ''');
+
+    await database.execute('''
+    CREATE INDEX idx_resto_requests_status
+    ON restaurant_role_requests(statut)
+  ''');
+
+    await database.execute('''
+    CREATE INDEX idx_resto_requests_user
+    ON restaurant_role_requests(user_id)
+  ''');
+
+    await database.execute('''
+    CREATE UNIQUE INDEX idx_resto_requests_one_pending
+    ON restaurant_role_requests(user_id)
+    WHERE statut = 'EN_ATTENTE'
+  ''');
+  }
+
+  static Future<void> _createRestaurantAccessRequests(
+  DatabaseExecutor database,
+  ) async {
+  await database.execute('''
+    CREATE TABLE restaurant_access_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      user_name TEXT NOT NULL,
+      user_email TEXT NOT NULL,
+      requested_role TEXT NOT NULL DEFAULT 'restaurant'
+        CHECK (requested_role = 'restaurant'),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected')),
+      submitted_at TEXT NOT NULL,
+      reviewed_at TEXT,
+      admin_id INTEGER,
+      FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE RESTRICT,
+      FOREIGN KEY (admin_id)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+    )
+  ''');
+
+  await database.execute(
+    'CREATE INDEX idx_restaurant_access_requests_status '
+    'ON restaurant_access_requests(status)',
+  );
+  await database.execute(
+    'CREATE INDEX idx_restaurant_access_requests_user '
+    'ON restaurant_access_requests(user_id, submitted_at)',
+  );
+  await database.execute('''
+    CREATE UNIQUE INDEX idx_restaurant_access_one_pending
+    ON restaurant_access_requests(user_id)
+    WHERE status = 'pending'
   ''');
   }
 }

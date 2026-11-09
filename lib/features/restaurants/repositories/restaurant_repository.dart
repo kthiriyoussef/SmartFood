@@ -3,7 +3,12 @@ import 'package:smartfood/core/database/database_helper.dart';
 import 'package:smartfood/features/restaurants/models/restaurant.dart';
 
 class RestaurantRepository {
-  Future<Database> get _database => DatabaseHelper.instance.database;
+  RestaurantRepository({Database? testDatabase}) : _testDatabase = testDatabase;
+
+  final Database? _testDatabase;
+
+  Future<Database> get _database async =>
+      _testDatabase ?? await DatabaseHelper.instance.database;
 
   Future<List<Restaurant>> getAllRestaurants() async {
     final rows = await (await _database).query(
@@ -25,6 +30,81 @@ class RestaurantRepository {
 
   Future<int> insertRestaurant(Restaurant restaurant) async {
     return (await _database).insert('restaurants', restaurant.toMap());
+  }
+
+  Future<int?> getRestaurantIdForOwner(int userId) async {
+    final database = await _database;
+    final users = await database.query(
+      'users',
+      columns: ['role', 'restaurant_id'],
+      where: 'id = ? AND actif = 1',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    if (users.isEmpty ||
+        !const ['RESTO', 'RESTAURANT'].contains(users.single['role'])) {
+      throw StateError('Compte restaurant actif introuvable.');
+    }
+
+    final restaurantId = users.single['restaurant_id'] as int?;
+    if (restaurantId == null) return null;
+
+    final restaurants = await database.query(
+      'restaurants',
+      columns: ['id'],
+      where: 'id = ?',
+      whereArgs: [restaurantId],
+      limit: 1,
+    );
+    if (restaurants.isEmpty) {
+      throw StateError('Le restaurant associé au compte est introuvable.');
+    }
+    return restaurantId;
+  }
+
+  Future<int> createRestaurantForOwner(
+    Restaurant restaurant,
+    int userId,
+  ) async {
+    final database = await _database;
+    return database.transaction((transaction) async {
+      final users = await transaction.query(
+        'users',
+        columns: ['role', 'restaurant_id'],
+        where: 'id = ? AND actif = 1',
+        whereArgs: [userId],
+        limit: 1,
+      );
+      if (users.isEmpty ||
+          !const ['RESTO', 'RESTAURANT'].contains(users.single['role'])) {
+        throw const RestaurantOwnershipException(
+          'Un compte restaurant actif est requis.',
+        );
+      }
+      if (users.single['restaurant_id'] != null) {
+        throw const RestaurantOwnershipException(
+          'Ce compte possède déjà un restaurant associé.',
+        );
+      }
+
+      final restaurantId = await transaction.insert(
+        'restaurants',
+        restaurant.toMap(),
+      );
+      final updated = await transaction.update(
+        'users',
+        {'restaurant_id': restaurantId},
+        where: "id = ? AND role IN ('RESTO', 'RESTAURANT') AND actif = 1 "
+            'AND restaurant_id IS NULL',
+        whereArgs: [userId],
+      );
+      if (updated != 1) {
+        throw const RestaurantOwnershipException(
+          'Impossible d’associer le restaurant à ce compte.',
+        );
+      }
+      return restaurantId;
+    });
   }
 
   Future<void> updateRestaurant(Restaurant restaurant) async {
@@ -92,4 +172,13 @@ class RestaurantRepository {
       );
     });
   }
+}
+
+class RestaurantOwnershipException implements Exception {
+  const RestaurantOwnershipException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
