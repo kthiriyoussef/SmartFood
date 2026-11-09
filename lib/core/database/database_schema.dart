@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseSchema {
-  static const int version = 10;
+  static const int version = 11;
 
   static Future<void> create(Database database, int _) async {
     await database.execute('''
@@ -47,6 +47,7 @@ class DatabaseSchema {
     await _createUsers(database);
     await _createReclamations(database);
     await _createReclamationMessages(database);
+    await _createRestaurantRoleRequests(database);
   }
 
   static Future<void> upgrade(
@@ -123,6 +124,10 @@ class DatabaseSchema {
     // Migration vers la version 10 : messagerie des réclamations.
     if (oldVersion < 10) {
       await _createReclamationMessages(database);
+    }
+    // Migration version 11 : demandes de rôle RESTO.
+    if (oldVersion < 11) {
+      await _createRestaurantRoleRequests(database);
     }
   }
 
@@ -331,6 +336,55 @@ class DatabaseSchema {
     await database.execute('''
     CREATE INDEX idx_reclamation_messages_sender
     ON reclamation_messages(sender_id)
+  ''');
+  }
+
+  static Future<void> _createRestaurantRoleRequests(
+    DatabaseExecutor database,
+  ) async {
+    await database.execute('''
+    CREATE TABLE restaurant_role_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      restaurant_id INTEGER NOT NULL,
+      statut TEXT NOT NULL DEFAULT 'EN_ATTENTE'
+        CHECK (statut IN (
+          'EN_ATTENTE',
+          'ACCEPTEE',
+          'REFUSEE'
+        )),
+      date_demande TEXT NOT NULL,
+      date_decision TEXT,
+      admin_id INTEGER,
+
+      FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE RESTRICT,
+
+      FOREIGN KEY (restaurant_id)
+        REFERENCES restaurants(id)
+        ON DELETE RESTRICT,
+
+      FOREIGN KEY (admin_id)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+    )
+  ''');
+
+    await database.execute('''
+    CREATE INDEX idx_resto_requests_status
+    ON restaurant_role_requests(statut)
+  ''');
+
+    await database.execute('''
+    CREATE INDEX idx_resto_requests_user
+    ON restaurant_role_requests(user_id)
+  ''');
+
+    await database.execute('''
+    CREATE UNIQUE INDEX idx_resto_requests_one_pending
+    ON restaurant_role_requests(user_id)
+    WHERE statut = 'EN_ATTENTE'
   ''');
   }
 }
